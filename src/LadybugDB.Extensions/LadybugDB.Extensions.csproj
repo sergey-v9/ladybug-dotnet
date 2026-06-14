@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
+    <AssemblyName>LadybugDB.Extensions</AssemblyName>
+    <RootNamespace>LadybugDB.Extensions</RootNamespace>
+    <DebugType>portable</DebugType>
+    <IsPackable>true</IsPackable>
+    <PackageId>LadybugDB.Extensions</PackageId>
+    <Title>LadybugDB.Extensions - DI, health, resilience, streaming &amp; export</Title>
+    <Description>.NET ecosystem layer for LadybugDB: dependency injection, health checks, a resilience executor, IAsyncEnumerable streaming sugar, row access, and query-result export (JSON/CSV/DataTable).</Description>
+    <PackageTags>graph;graph-database;ladybug;dependency-injection;healthcheck;resilience;export</PackageTags>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LadybugDB\LadybugDB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LadybugDB.Tests.Extensions" />
+  </ItemGroup>
+
+  <Import Project="$(CSharpDir)nuget\library-package.props" />
+
+</Project>
