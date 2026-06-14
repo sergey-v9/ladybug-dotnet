@@ -141,4 +141,31 @@ public sealed partial class Connection : IDisposable
 
         _database.ThrowIfDisposed();
     }
+
+    /// <summary>Runs <paramref name="action"/> under the connection's serialization gate and
+    /// disposal guard. Used by the WS-B control partial (Connection.Control.cs).</summary>
+    internal T WithGate<T>(NativeHandleFunc<T> action)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            return action(ref _handle);
+        }
+    }
+
+    /// <summary>Delegate that operates on the native connection handle under the gate.</summary>
+    internal delegate T NativeHandleFunc<T>(ref Interop.LbugConnection handle);
+
+    /// <summary>Runs an action that returns nothing under the gate (e.g. config calls).</summary>
+    internal void WithGate(NativeHandleAction action)
+    {
+        lock (_gate)
+        {
+            ThrowIfDisposed();
+            action(ref _handle);
+        }
+    }
+
+    /// <summary>Delegate that operates on the native connection handle under the gate.</summary>
+    internal delegate void NativeHandleAction(ref Interop.LbugConnection handle);
 }
