@@ -22,4 +22,29 @@ public sealed partial class Connection
             throw new LadybugException("Failed to set the query timeout.");
         }
     }
+
+    /// <summary>Sets the maximum number of threads the engine may use to execute a query.</summary>
+    public void SetMaxThreadsForExec(ulong numThreads)
+    {
+        LbugState state = WithGate((ref LbugConnection h) => Native.ConnectionSetMaxNumThreadForExec(ref h, numThreads));
+        if (state != LbugState.Success)
+        {
+            throw new LadybugException("Failed to set the maximum execution threads.");
+        }
+    }
+
+    /// <summary>Returns the maximum number of threads the engine may use to execute a query.</summary>
+    public ulong GetMaxThreadsForExec()
+    {
+        return WithGate((ref LbugConnection h) =>
+        {
+            LbugState state = Native.ConnectionGetMaxNumThreadForExec(ref h, out ulong value);
+            if (state != LbugState.Success)
+            {
+                throw new LadybugException("Failed to read the maximum execution threads.");
+            }
+
+            return value;
+        });
+    }
 }

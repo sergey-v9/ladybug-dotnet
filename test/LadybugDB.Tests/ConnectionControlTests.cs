@@ -35,4 +35,27 @@ public sealed class ConnectionControlTests
             TestEnvironment.TryDelete(dbPath);
         }
     }
+
+    [SkippableFact]
+    public void MaxThreadsForExec_RoundTrips()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            conn.SetMaxThreadsForExec(3);
+            Assert.Equal(3UL, conn.GetMaxThreadsForExec());
+
+            conn.SetMaxThreadsForExec(1);
+            Assert.Equal(1UL, conn.GetMaxThreadsForExec());
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
 }
