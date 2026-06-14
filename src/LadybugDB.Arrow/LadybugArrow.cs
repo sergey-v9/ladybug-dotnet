@@ -70,4 +70,95 @@ public static partial class LadybugArrow
             yield return batch;
         }
     }
+
+    /// <summary>
+    /// Ingests an Apache.Arrow <see cref="RecordBatch"/> as an in-memory node table named
+    /// <paramref name="tableName"/>. Ownership of the exported Arrow structs is transferred to the
+    /// engine, matching the native <c>lbug_connection_create_arrow_table</c> contract — the caller
+    /// keeps full ownership of the original managed <paramref name="batch"/>.
+    /// </summary>
+    public static void CreateArrowTable(this Connection connection, string tableName, RecordBatch batch)
+    {
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
+        if (tableName is null)
+        {
+            throw new ArgumentNullException(nameof(tableName));
+        }
+
+        if (batch is null)
+        {
+            throw new ArgumentNullException(nameof(batch));
+        }
+
+        unsafe
+        {
+            // Allocate C-Data blocks via Apache.Arrow's own allocator (paired with its exporters'
+            // release callbacks). The engine OWNS these after the call (success OR failure), so we
+            // never free or release them ourselves.
+            CArrowSchema* cSchema = CArrowSchema.Create();
+            CArrowArray* cArray = CArrowArray.Create();
+            CArrowSchemaExporter.ExportSchema(batch.Schema, cSchema);
+            CArrowArrayExporter.ExportRecordBatch(batch, cArray);
+
+            // numArrays = 1: a single contiguous Arrow struct-array for the whole batch.
+            using QueryResult result = connection.CreateArrowTableInternal(tableName, (IntPtr)cSchema, (IntPtr)cArray, 1UL);
+            GC.KeepAlive(result);
+        }
+    }
+
+    /// <summary>
+    /// Ingests an Apache.Arrow <see cref="RecordBatch"/> as an in-memory relationship table named
+    /// <paramref name="tableName"/> connecting <paramref name="fromTable"/> to
+    /// <paramref name="toTable"/>. The batch must carry the internal-id columns the engine expects
+    /// (typically <c>FROM</c>/<c>TO</c> plus any rel properties). Ownership of the exported Arrow
+    /// structs is transferred to the engine; the caller keeps the managed <paramref name="batch"/>.
+    /// </summary>
+    public static void CreateArrowRelTable(this Connection connection, string tableName, RecordBatch batch, string fromTable, string toTable)
+    {
+        if (connection is null)
+        {
+            throw new ArgumentNullException(nameof(connection));
+        }
+
+        if (tableName is null)
+        {
+            throw new ArgumentNullException(nameof(tableName));
+        }
+
+        if (batch is null)
+        {
+            throw new ArgumentNullException(nameof(batch));
+        }
+
+        if (fromTable is null)
+        {
+            throw new ArgumentNullException(nameof(fromTable));
+        }
+
+        if (toTable is null)
+        {
+            throw new ArgumentNullException(nameof(toTable));
+        }
+
+        unsafe
+        {
+            CArrowSchema* cSchema = CArrowSchema.Create();
+            CArrowArray* cArray = CArrowArray.Create();
+            CArrowSchemaExporter.ExportSchema(batch.Schema, cSchema);
+            CArrowArrayExporter.ExportRecordBatch(batch, cArray);
+
+            using QueryResult result = connection.CreateArrowRelTableInternal(tableName, fromTable, toTable, (IntPtr)cSchema, (IntPtr)cArray, 1UL);
+            GC.KeepAlive(result);
+        }
+
+        // NOTE (CSR best-effort, D6): lbug_connection_create_arrow_rel_table_csr (CSR ingest, and the
+        // CSRResult read shape) is intentionally deferred. The interop shim exists
+        // (Native.ConnectionCreateArrowRelTableCsr), but a correct managed surface needs paired
+        // indices+indptr Arrow exports and a CSR result reader, which exceeds the low-cost bar for
+        // this workstream. Tracked in docs/parity-2026-06/parity-tracking.md.
+    }
 }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Apache.Arrow;
+using Apache.Arrow.Types;
 using LadybugDB;
 using LadybugDB.Arrow;
 using Xunit;
@@ -50,5 +51,48 @@ public sealed class LadybugArrowTests
         {
             TestEnvironment.TryDelete(dbPath);
         }
+    }
+
+    [SkippableFact]
+    public void CreateArrowTable_IngestsARecordBatch()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            using RecordBatch batch = BuildPeopleBatch((10, "x"), (20, "y"));
+            conn.CreateArrowTable("Imported", batch);
+
+            using QueryResult r = conn.Query("MATCH (n:Imported) RETURN n.id AS id ORDER BY id");
+            List<long?> ids = r.ReadBatches()
+                .SelectMany(b => Enumerable.Range(0, b.Length).Select(i => ((Int64Array)b.Column("id")).GetValue(i)))
+                .ToList();
+            Assert.Equal(new long?[] { 10L, 20L }, ids);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    /// <summary>Builds a 2-column (id INT64 non-null, name STRING) RecordBatch from the given rows.</summary>
+    private static RecordBatch BuildPeopleBatch(params (long Id, string Name)[] rows)
+    {
+        var idField = new Field("id", Int64Type.Default, nullable: false);
+        var nameField = new Field("name", StringType.Default, nullable: true);
+        var schema = new Schema(new[] { idField, nameField }, metadata: null);
+
+        var idBuilder = new Int64Array.Builder();
+        var nameBuilder = new StringArray.Builder();
+        foreach ((long id, string name) in rows)
+        {
+            idBuilder.Append(id);
+            nameBuilder.Append(name);
+        }
+
+        return new RecordBatch(schema, new IArrowArray[] { idBuilder.Build(), nameBuilder.Build() }, rows.Length);
     }
 }
