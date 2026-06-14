@@ -118,6 +118,56 @@ public sealed class PackManagedTask : FrostingTask<BuildContext>
     }
 }
 
+/// <summary>Packs the LadybugDB.Extensions satellite package (DI/health/resilience/export).</summary>
+[TaskName("PackExtensions")]
+[IsDependentOn(typeof(RestoreTask))]
+public sealed class PackExtensionsTask : FrostingTask<BuildContext>
+{
+    public override void Run(BuildContext context)
+    {
+        var msbuild = new DotNetMSBuildSettings()
+            .WithProperty("Version", context.Version)
+            .WithProperty("ContinuousIntegrationBuild", "true");
+
+        if (!string.IsNullOrEmpty(context.Commit))
+        {
+            msbuild.WithProperty("RepositoryCommit", context.Commit);
+        }
+
+        context.DotNetPack(context.ExtensionsProject, new DotNetPackSettings
+        {
+            Configuration = context.BuildConfiguration,
+            OutputDirectory = context.ArtifactsDir,
+            MSBuildSettings = msbuild,
+        });
+    }
+}
+
+/// <summary>Packs the LadybugDB.Arrow satellite package (Apache.Arrow interop).</summary>
+[TaskName("PackArrow")]
+[IsDependentOn(typeof(RestoreTask))]
+public sealed class PackArrowTask : FrostingTask<BuildContext>
+{
+    public override void Run(BuildContext context)
+    {
+        var msbuild = new DotNetMSBuildSettings()
+            .WithProperty("Version", context.Version)
+            .WithProperty("ContinuousIntegrationBuild", "true");
+
+        if (!string.IsNullOrEmpty(context.Commit))
+        {
+            msbuild.WithProperty("RepositoryCommit", context.Commit);
+        }
+
+        context.DotNetPack(context.ArrowProject, new DotNetPackSettings
+        {
+            Configuration = context.BuildConfiguration,
+            OutputDirectory = context.ArtifactsDir,
+            MSBuildSettings = msbuild,
+        });
+    }
+}
+
 /// <summary>
 /// Stages and packs one native package per shipped RID (LadybugDB.Native.&lt;rid&gt;) from the single
 /// runtime packaging template.

@@ -12,6 +12,8 @@ namespace LadybugDB.Build.Tasks;
 /// </summary>
 [TaskName("VerifyPackages")]
 [IsDependentOn(typeof(PackManagedTask))]
+[IsDependentOn(typeof(PackExtensionsTask))]
+[IsDependentOn(typeof(PackArrowTask))]
 [IsDependentOn(typeof(PackRuntimesTask))]
 [IsDependentOn(typeof(PackNativeMetaTask))]
 public sealed class VerifyPackagesTask : FrostingTask<BuildContext>
@@ -25,6 +27,22 @@ public sealed class VerifyPackagesTask : FrostingTask<BuildContext>
         {
             RequireFile(p, "lib/net10.0/LadybugDB.dll", errors);
             RequireFile(p, "lib/netstandard2.0/LadybugDB.dll", errors);
+        });
+
+        // The core package must also carry the bundled source-generator analyzer asset.
+        Require(packages, "LadybugDB", errors,
+            p => RequireFile(p, "analyzers/dotnet/cs/LadybugDB.SourceGen.dll", errors));
+
+        Require(packages, "LadybugDB.Extensions", errors, p =>
+        {
+            RequireFile(p, "lib/net10.0/LadybugDB.Extensions.dll", errors);
+            RequireFile(p, "lib/netstandard2.0/LadybugDB.Extensions.dll", errors);
+        });
+
+        Require(packages, "LadybugDB.Arrow", errors, p =>
+        {
+            RequireFile(p, "lib/net10.0/LadybugDB.Arrow.dll", errors);
+            RequireFile(p, "lib/netstandard2.0/LadybugDB.Arrow.dll", errors);
         });
 
         foreach (string rid in context.AllRids)

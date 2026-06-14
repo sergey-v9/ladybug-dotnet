@@ -51,6 +51,8 @@ public sealed class BuildContext : FrostingContext
             Environment.GetEnvironmentVariable("ENGINE_VERSION") ?? $"v{DeriveEngineVersion(Version)}");
 
         ManagedProject = Path.Combine(Root, "src", "LadybugDB", "LadybugDB.csproj");
+        ExtensionsProject = Path.Combine(Root, "src", "LadybugDB.Extensions", "LadybugDB.Extensions.csproj");
+        ArrowProject = Path.Combine(Root, "src", "LadybugDB.Arrow", "LadybugDB.Arrow.csproj");
         TestProject = Path.Combine(Root, "test", "LadybugDB.Tests", "LadybugDB.Tests.csproj");
         Solution = Path.Combine(Root, "LadybugDB.slnx");
         NativeDir = Path.Combine(Root, "cake", "native");
@@ -69,6 +71,8 @@ public sealed class BuildContext : FrostingContext
 
     public string Root { get; }
     public string ManagedProject { get; }
+    public string ExtensionsProject { get; }
+    public string ArrowProject { get; }
     public string TestProject { get; }
     public string Solution { get; }
     public string NativeDir { get; }
