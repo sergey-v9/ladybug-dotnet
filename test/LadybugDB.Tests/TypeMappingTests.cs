@@ -232,6 +232,44 @@ public sealed class TypeMappingTests
         }
     }
 
+    // UNION-1: for a MULTI-member union the active member's VALUE read is exact (field 0 is the active
+    // member). The tag LABEL is best-effort because the C API exposes no tag discriminator, so we pin
+    // value-correctness here and only assert the tag is a declared member name, not which one.
+    [SkippableFact]
+    public void MultiMember_union_value_is_correct_even_though_tag_is_best_effort()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            conn.Query(
+                "CREATE NODE TABLE T(id INT64, u UNION(num INT64, str STRING), PRIMARY KEY(id))").Dispose();
+            // Insert a row whose active union member is the STRING member (the second declared member),
+            // so a naive "first member" tag guess would be wrong while the value must still be exact.
+            conn.Query("CREATE (:T {id: 1, u: union_value(str := 'hello')})").Dispose();
+
+            using QueryResult result = conn.Query("MATCH (t:T) RETURN t.u");
+            object?[] row = result.Rows().Single();
+
+            var union = Assert.IsType<Union>(row[0]);
+
+            // The active member's VALUE is exact regardless of which member is active.
+            Assert.Equal("hello", union.Value);
+
+            // The tag is best-effort for multi-member unions: assert only that it is one of the declared
+            // member names, not which one (the engine exposes no tag-discriminator accessor).
+            Assert.Contains(union.Tag, new[] { "num", "str" });
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
     [SkippableFact]
     public void Node_value_materializes_id_label_and_properties()
     {

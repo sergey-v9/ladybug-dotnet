@@ -300,10 +300,14 @@ public sealed class Value : IDisposable
     {
         // A UNION is physically a STRUCT whose declared fields are [tag, member0, member1, ...]; only
         // one member is active at a time. The engine materializes exactly one child — the active
-        // member's value — reachable as struct field value index 0. The numeric tag discriminator is
-        // not exposed by the C API, so the active member's NAME is recovered as the first declared
-        // field name other than the reserved "tag" field. This is exact for single-member unions;
-        // for a multi-member union it is the documented best-effort fallback.
+        // member's value — reachable as struct field value index 0, so the VALUE below is always exact
+        // regardless of how many members the union declares (verified by the multi-member native test).
+        //
+        // The tag LABEL, however, is best-effort: the numeric tag discriminator is not exposed by the
+        // C API, so the member NAME is recovered as the first declared field name other than the
+        // reserved "tag" field. That is exact for single-member unions, but for a MULTI-member union it
+        // can name the wrong member (the active member's value is still correct). A proper fix needs an
+        // upstream lbug_value union-tag accessor.
         EnsureSuccess(Native.ValueGetStructNumFields(ref _handle, out ulong count), DataTypeId.Union);
 
         object? active = null;
@@ -366,10 +370,15 @@ public sealed class Value : IDisposable
                 value = mapValue.GetValue();
             }
 
-            if (key is not null)
+            // Ladybug MAP keys are non-nullable, so a null key here would mean the engine handed us a
+            // malformed entry. A Dictionary<object, ...> cannot hold a null key anyway; surface the
+            // anomaly instead of silently dropping the entry (MAP-2 defense-in-depth).
+            if (key is null)
             {
-                map[key] = value;
+                throw new LadybugException("Encountered a null MAP key while materializing a map value.");
             }
+
+            map[key] = value;
         }
 
         return map;
