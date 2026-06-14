@@ -1,6 +1,9 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using LadybugDB.Interop;
 
@@ -106,6 +109,55 @@ public sealed class PreparedStatement : IDisposable
     }
 #endif
 
+    /// <summary>Binds a CLR <see cref="decimal"/> as a DECIMAL parameter.</summary>
+    public PreparedStatement Bind(string name, decimal value)
+        => Bind(name, ToLadybugDecimal(value));
+
+    /// <summary>Binds a <see cref="LadybugDecimal"/> losslessly as a DECIMAL parameter.</summary>
+    public PreparedStatement Bind(string name, LadybugDecimal value)
+        => BindValue(name, CreateDecimalValue(value));
+
+    /// <summary>Binds a <see cref="BigInteger"/> as an INT128 parameter.</summary>
+    public PreparedStatement Bind(string name, BigInteger value)
+        => BindValue(name, CreateInt128Value(value));
+
+    /// <summary>
+    /// Binds a <see cref="byte"/> array as a BLOB. The C API has no BLOB value creator, so the bytes
+    /// are bound as an escaped <c>'\xNN…'</c> string literal; the surrounding query is expected to
+    /// <c>CAST(... AS BLOB)</c>.
+    /// </summary>
+    public PreparedStatement Bind(string name, byte[] value)
+    {
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        return Bind(name, ToBlobLiteral(value));
+    }
+
+    /// <summary>Binds a dictionary as a STRUCT parameter.</summary>
+    public PreparedStatement Bind(string name, IReadOnlyDictionary<string, object?> value)
+    {
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        return BindValue(name, CreateStructValue(value));
+    }
+
+    /// <summary>Binds a key/value sequence as a MAP parameter.</summary>
+    public PreparedStatement BindMap(string name, IEnumerable<KeyValuePair<object, object?>> value)
+    {
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        return BindValue(name, CreateMapValue(value));
+    }
+
     /// <summary>Binds a parameter whose CLR type is determined at runtime.</summary>
     public PreparedStatement Bind(string name, object? value)
     {
@@ -131,6 +183,12 @@ public sealed class PreparedStatement : IDisposable
 #if NET7_0_OR_GREATER
             case DateOnly v: return Bind(name, v);
 #endif
+            case decimal v: return Bind(name, v);
+            case LadybugDecimal v: return Bind(name, v);
+            case BigInteger v: return Bind(name, v);
+            case byte[] v: return Bind(name, v);
+            case IReadOnlyDictionary<string, object?> v: return Bind(name, v);
+            case IEnumerable<KeyValuePair<object, object?>> v: return BindMap(name, v);
             case IEnumerable v: return BindValue(name, CreateNativeValue(v));
             default:
                 throw new NotSupportedException($"Cannot bind a parameter of type {value.GetType()}.");
@@ -194,6 +252,12 @@ public sealed class PreparedStatement : IDisposable
 #if NET7_0_OR_GREATER
             DateOnly v => Native.ValueCreateDate(new LbugDate { Days = v.DayNumber - new DateOnly(1970, 1, 1).DayNumber }),
 #endif
+            decimal v => CreateDecimalValue(ToLadybugDecimal(v)),
+            LadybugDecimal v => CreateDecimalValue(v),
+            BigInteger v => CreateInt128Value(v),
+            byte[] v => Native.ValueCreateString(ToBlobLiteral(v)), // BLOB literal; caller CASTs to BLOB
+            IReadOnlyDictionary<string, object?> v => CreateStructValue(v),
+            IEnumerable<KeyValuePair<object, object?>> v => CreateMapValue(v),
             IEnumerable v => CreateNativeList(v),
             _ => throw new NotSupportedException($"Cannot bind a parameter of type {value.GetType()}.")
         };
@@ -204,6 +268,167 @@ public sealed class PreparedStatement : IDisposable
         }
 
         return handle;
+    }
+
+    private static LadybugDecimal ToLadybugDecimal(decimal value)
+    {
+        // decimal's scale lives in bits 16-23 of the flags word (index 3 of GetBits).
+        int[] bits = decimal.GetBits(value);
+        byte scale = (byte)((bits[3] >> 16) & 0x7F);
+        BigInteger mantissa = MantissaOf(value);
+        return new LadybugDecimal(value < 0 ? -mantissa : mantissa, scale);
+    }
+
+    private static BigInteger MantissaOf(decimal value)
+    {
+        int[] bits = decimal.GetBits(value);
+        uint lo = (uint)bits[0];
+        uint mid = (uint)bits[1];
+        uint hi = (uint)bits[2];
+        return (new BigInteger(hi) << 64) | (new BigInteger(mid) << 32) | lo;
+    }
+
+    private static IntPtr CreateDecimalValue(LadybugDecimal value)
+    {
+        // Native create_decimal takes the textual form plus precision and scale; precision must be
+        // at least the number of significant digits in the mantissa.
+        string text = value.ToString();
+        uint scale = value.Scale;
+        uint precision = (uint)BigInteger.Abs(value.Unscaled).ToString(CultureInfo.InvariantCulture).TrimStart('0').Length;
+        if (precision < scale + 1)
+        {
+            precision = scale + 1u;
+        }
+
+        IntPtr handle = Native.ValueCreateDecimal(text, precision, scale);
+        if (handle == IntPtr.Zero)
+        {
+            throw new LadybugException("Failed to create a DECIMAL parameter value.");
+        }
+
+        return handle;
+    }
+
+    private static IntPtr CreateInt128Value(BigInteger value)
+    {
+        // Use the native string parser so the full 128-bit range is honored exactly.
+        if (Native.Int128FromString(value.ToString(CultureInfo.InvariantCulture), out LbugInt128 int128) != LbugState.Success)
+        {
+            throw new LadybugException($"Value {value} is out of INT128 range.");
+        }
+
+        IntPtr handle = Native.ValueCreateInt128(int128);
+        if (handle == IntPtr.Zero)
+        {
+            throw new LadybugException("Failed to create an INT128 parameter value.");
+        }
+
+        return handle;
+    }
+
+    private static string ToBlobLiteral(byte[] value)
+    {
+        var builder = new System.Text.StringBuilder(value.Length * 4);
+        foreach (byte b in value)
+        {
+            builder.Append("\\x").Append(b.ToString("X2", CultureInfo.InvariantCulture));
+        }
+
+        return builder.ToString();
+    }
+
+    private static IntPtr CreateStructValue(IReadOnlyDictionary<string, object?> fields)
+    {
+        var fieldNamePtrs = new List<IntPtr>(fields.Count);
+        var fieldValuePtrs = new List<IntPtr>(fields.Count);
+        try
+        {
+            foreach (KeyValuePair<string, object?> field in fields)
+            {
+                fieldNamePtrs.Add(Utf8ToCoTaskMem(field.Key));
+                fieldValuePtrs.Add(CreateNativeValue(field.Value));
+            }
+
+            IntPtr[] names = fieldNamePtrs.ToArray();
+            IntPtr[] values = fieldValuePtrs.ToArray();
+            LbugState state = Native.ValueCreateStruct((ulong)names.Length, names, values, out IntPtr structHandle);
+            if (state != LbugState.Success || structHandle == IntPtr.Zero)
+            {
+                throw new LadybugException("Failed to create a STRUCT parameter value.");
+            }
+
+            return structHandle;
+        }
+        finally
+        {
+            foreach (IntPtr ptr in fieldValuePtrs)
+            {
+                Native.ValueDestroy(ptr);
+            }
+
+            foreach (IntPtr ptr in fieldNamePtrs)
+            {
+                Marshal.FreeCoTaskMem(ptr);
+            }
+        }
+    }
+
+    // Allocates a NUL-terminated UTF-8 copy of the string in unmanaged memory (CoTaskMem), portable
+    // across both target frameworks (Marshal.StringToCoTaskMemUTF8 is unavailable on ns2.0). Free
+    // with Marshal.FreeCoTaskMem.
+    private static IntPtr Utf8ToCoTaskMem(string value)
+    {
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(value);
+        IntPtr buffer = Marshal.AllocCoTaskMem(bytes.Length + 1);
+        Marshal.Copy(bytes, 0, buffer, bytes.Length);
+        Marshal.WriteByte(buffer, bytes.Length, 0);
+        return buffer;
+    }
+
+    private static IntPtr CreateMapValue(IEnumerable<KeyValuePair<object, object?>> entries)
+    {
+        var keyPtrs = new List<IntPtr>();
+        var valuePtrs = new List<IntPtr>();
+        try
+        {
+            foreach (KeyValuePair<object, object?> entry in entries)
+            {
+                keyPtrs.Add(CreateNativeValue(entry.Key));
+                valuePtrs.Add(CreateNativeValue(entry.Value));
+            }
+
+            if (keyPtrs.Count == 0)
+            {
+                throw new NotSupportedException("Cannot bind an empty MAP parameter; the engine cannot infer its key/value types.");
+            }
+
+            IntPtr[] keys = keyPtrs.ToArray();
+            IntPtr[] values = valuePtrs.ToArray();
+            LbugState state = Native.ValueCreateMap((ulong)keys.Length, keys, values, out IntPtr mapHandle);
+            if (state != LbugState.Success || mapHandle == IntPtr.Zero)
+            {
+                throw new LadybugException("Failed to create a MAP parameter value.");
+            }
+
+            return mapHandle;
+        }
+        finally
+        {
+            foreach (IntPtr ptr in valuePtrs)
+            {
+                Native.ValueDestroy(ptr);
+            }
+
+            foreach (IntPtr ptr in keyPtrs)
+            {
+                Native.ValueDestroy(ptr);
+            }
+        }
     }
 
     private static IntPtr CreateNativeList(IEnumerable values)
