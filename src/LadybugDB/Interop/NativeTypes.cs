@@ -124,6 +124,13 @@ internal struct LbugLogicalType
     public IntPtr DataType;
 }
 
+/// <summary>Mirror of the C <c>lbug_query_summary</c> handle ({ void* }).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct LbugQuerySummary
+{
+    public IntPtr QuerySummary;
+}
+
 [StructLayout(LayoutKind.Sequential)]
 internal struct LbugInternalId
 {

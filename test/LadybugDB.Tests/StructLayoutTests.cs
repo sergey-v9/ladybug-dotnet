@@ -31,6 +31,7 @@ public sealed class StructLayoutTests
     [InlineData(typeof(LbugDatabase))]
     [InlineData(typeof(LbugConnection))]
     [InlineData(typeof(LbugLogicalType))]
+    [InlineData(typeof(LbugQuerySummary))]
     public void SinglePointerHandle_IsOnePointerWide(Type type)
     {
         Assert.Equal(IntPtr.Size, Marshal.SizeOf(type));
