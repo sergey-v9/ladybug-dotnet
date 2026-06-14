@@ -122,6 +122,47 @@ public sealed class LadybugArrowTests
         }
     }
 
+    [SkippableFact]
+    public void CreateArrowRelTable_IngestsRelationships()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+            conn.Query("CREATE NODE TABLE Person(id INT64, PRIMARY KEY(id))").Dispose();
+            conn.Query("CREATE (:Person {id: 1})").Dispose();
+            conn.Query("CREATE (:Person {id: 2})").Dispose();
+            conn.Query("CREATE (:Person {id: 3})").Dispose();
+
+            // create_arrow_rel_table CREATES the rel table from the Arrow data, so it must not
+            // already exist. The engine requires endpoint columns named "from"/"to" (node PKs).
+            var fromField = new Field("from", Int64Type.Default, nullable: false);
+            var toField = new Field("to", Int64Type.Default, nullable: false);
+            var sinceField = new Field("since", Int64Type.Default, nullable: false);
+            var schema = new Schema(new[] { fromField, toField, sinceField }, metadata: null);
+
+            var fromArray = new Int64Array.Builder().Append(1).Append(2).Build();
+            var toArray = new Int64Array.Builder().Append(2).Append(3).Build();
+            var sinceArray = new Int64Array.Builder().Append(2020).Append(2021).Build();
+            using var batch = new RecordBatch(schema, new IArrowArray[] { fromArray, toArray, sinceArray }, length: 2);
+
+            conn.CreateArrowRelTable("Knows", batch, "Person", "Person");
+
+            using QueryResult r = conn.Query(
+                "MATCH (a:Person)-[k:Knows]->(b:Person) RETURN a.id AS src, b.id AS dst, k.since AS since ORDER BY a.id");
+            List<object?[]> rows = r.Rows().ToList();
+            Assert.Equal(2, rows.Count);
+            Assert.Equal(new object?[] { 1L, 2L, 2020L }, rows[0]);
+            Assert.Equal(new object?[] { 2L, 3L, 2021L }, rows[1]);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
     /// <summary>Builds a 2-column (id INT64 non-null, name STRING) RecordBatch from the given rows.</summary>
     private static RecordBatch BuildPeopleBatch(params (long Id, string Name)[] rows)
     {
