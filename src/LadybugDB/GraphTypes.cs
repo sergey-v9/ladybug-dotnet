@@ -37,3 +37,10 @@ public sealed record Rel(
 
 /// <summary>A recursive (variable-length) relationship: the chain of nodes and relationships.</summary>
 public sealed record RecursiveRel(IReadOnlyList<Node> Nodes, IReadOnlyList<Rel> Rels);
+
+/// <summary>
+/// A tagged UNION value: the name of the active member (<see cref="Tag"/>) and its materialized
+/// <see cref="Value"/>. Ladybug stores a UNION physically as a struct whose first field is the
+/// active member's tag; this surfaces only the active member.
+/// </summary>
+public sealed record Union(string Tag, object? Value);

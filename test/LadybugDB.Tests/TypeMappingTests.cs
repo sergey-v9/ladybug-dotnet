@@ -108,6 +108,131 @@ public sealed class TypeMappingTests
     }
 
     [SkippableFact]
+    public void Decimal_in_range_maps_to_decimal()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            using QueryResult result = conn.Query("RETURN CAST(123.45 AS DECIMAL(10, 2)) AS d");
+            object?[] row = result.Rows().Single();
+
+            Assert.Equal(123.45m, Assert.IsType<decimal>(row[0]));
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
+    public void Decimal_out_of_decimal_range_maps_to_LadybugDecimal_not_string()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            // DECIMAL(38, 0) holds 38 integer digits — far beyond decimal's ~28-29 significant digits.
+            using QueryResult result =
+                conn.Query("RETURN CAST(12345678901234567890123456789012345678 AS DECIMAL(38, 0)) AS d");
+            object?[] row = result.Rows().Single();
+
+            var big = Assert.IsType<LadybugDecimal>(row[0]);
+            Assert.Equal("12345678901234567890123456789012345678", big.ToString());
+            Assert.IsNotType<string>(row[0]);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
+    public void GetDecimal_returns_a_LadybugDecimal()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            using QueryResult result = conn.Query("RETURN CAST(1.50 AS DECIMAL(10, 2)) AS d");
+            Assert.True(result.HasNext());
+            using FlatTuple tuple = result.GetNext();
+            using Value value = tuple.GetValue(0);
+
+            LadybugDecimal d = value.GetDecimal();
+            Assert.Equal("1.50", d.ToString());
+            Assert.Equal(1.5m, d.ToDecimal());
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
+    public void Fixed_array_maps_to_object_array_of_declared_length()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            conn.Query("CREATE NODE TABLE V(id INT64, vec DOUBLE[3], PRIMARY KEY(id))").Dispose();
+            conn.Query("CREATE (:V {id: 1, vec: [1.0, 2.0, 3.0]})").Dispose();
+
+            using QueryResult result = conn.Query("MATCH (v:V) RETURN v.vec");
+            object?[] row = result.Rows().Single();
+
+            var array = Assert.IsType<object?[]>(row[0]);
+            Assert.Equal(3, array.Length);
+            Assert.Equal(new object?[] { 1.0d, 2.0d, 3.0d }, array);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
+    public void Union_value_materializes_as_tagged_union()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            using QueryResult result = conn.Query("RETURN union_value(num := 5) AS u");
+            object?[] row = result.Rows().Single();
+
+            var union = Assert.IsType<Union>(row[0]);
+            Assert.Equal("num", union.Tag);
+            Assert.Equal(5L, union.Value);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
     public void Node_value_materializes_id_label_and_properties()
     {
         Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");

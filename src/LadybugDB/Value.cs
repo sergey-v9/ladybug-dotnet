@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Runtime.InteropServices;
 using LadybugDB.Interop;
 
@@ -125,11 +124,13 @@ public sealed class Value : IDisposable
             case DataTypeId.String:
                 return GetString();
             case DataTypeId.List:
-            case DataTypeId.Array:
                 return ReadList();
+            case DataTypeId.Array:
+                return ReadArray();
             case DataTypeId.Struct:
-            case DataTypeId.Union:
                 return ReadStruct();
+            case DataTypeId.Union:
+                return ReadUnion();
             case DataTypeId.Map:
                 return ReadMap();
             case DataTypeId.Node:
@@ -151,6 +152,18 @@ public sealed class Value : IDisposable
         LbugState state = Native.ValueGetString(ref _handle, out IntPtr pointer);
         EnsureSuccess(state, DataTypeId.String);
         return Native.TakeString(pointer);
+    }
+
+    /// <summary>
+    /// Reads a DECIMAL value losslessly as a <see cref="LadybugDecimal"/>, regardless of whether it
+    /// fits a CLR <see cref="decimal"/>. The value must be of type DECIMAL.
+    /// </summary>
+    public LadybugDecimal GetDecimal()
+    {
+        ThrowIfDisposed();
+        EnsureSuccess(Native.ValueGetDecimalAsString(ref _handle, out IntPtr pointer), DataTypeId.Decimal);
+        string text = Native.TakeString(pointer) ?? "0";
+        return LadybugDecimal.Parse(text);
     }
 
     /// <inheritdoc />
@@ -200,11 +213,8 @@ public sealed class Value : IDisposable
 
     private object ReadDecimal()
     {
-        EnsureSuccess(Native.ValueGetDecimalAsString(ref _handle, out IntPtr pointer), DataTypeId.Decimal);
-        string text = Native.TakeString(pointer) ?? "0";
-        return decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value)
-            ? value
-            : text;
+        LadybugDecimal value = GetDecimal();
+        return value.TryToDecimal(out decimal representable) ? representable : value;
     }
 
     private object ReadUuid()
@@ -251,6 +261,70 @@ public sealed class Value : IDisposable
         }
 
         return items;
+    }
+
+    private object?[] ReadArray()
+    {
+        // ARRAY is fixed-length. The engine's lbug_value_get_list_size only accepts LIST (not ARRAY),
+        // so the element count comes from the declared fixed length on the logical type; iterating
+        // lbug_value_get_list_element (which does accept ARRAY) yields the elements.
+        ulong size = GetFixedArraySize();
+        var items = new object?[size];
+        for (ulong i = 0; i < size; i++)
+        {
+            EnsureSuccess(Native.ValueGetListElement(ref _handle, i, out LbugValue elementHandle), DataTypeId.Array);
+            using var element = new Value(elementHandle);
+            items[i] = element.GetValue();
+        }
+
+        return items;
+    }
+
+    private ulong GetFixedArraySize()
+    {
+        Native.ValueGetDataType(ref _handle, out LbugLogicalType logicalType);
+        try
+        {
+            EnsureSuccess(Native.DataTypeGetNumElementsInArray(ref logicalType, out ulong count), DataTypeId.Array);
+            return count;
+        }
+        finally
+        {
+            Native.DataTypeDestroy(ref logicalType);
+        }
+    }
+
+    private Union ReadUnion()
+    {
+        // A UNION is physically a STRUCT whose declared fields are [tag, member0, member1, ...]; only
+        // one member is active at a time. The engine materializes exactly one child — the active
+        // member's value — reachable as struct field value index 0. The numeric tag discriminator is
+        // not exposed by the C API, so the active member's NAME is recovered as the first declared
+        // field name other than the reserved "tag" field. This is exact for single-member unions;
+        // for a multi-member union it is the documented best-effort fallback.
+        EnsureSuccess(Native.ValueGetStructNumFields(ref _handle, out ulong count), DataTypeId.Union);
+
+        object? active = null;
+        if (count > 0)
+        {
+            EnsureSuccess(Native.ValueGetStructFieldValue(ref _handle, 0, out LbugValue activeHandle), DataTypeId.Union);
+            using var activeValue = new Value(activeHandle);
+            active = activeValue.GetValue();
+        }
+
+        string tag = string.Empty;
+        for (ulong i = 0; i < count; i++)
+        {
+            EnsureSuccess(Native.ValueGetStructFieldName(ref _handle, i, out IntPtr namePointer), DataTypeId.Union);
+            string name = Native.TakeString(namePointer) ?? string.Empty;
+            if (!string.Equals(name, "tag", StringComparison.Ordinal))
+            {
+                tag = name;
+                break;
+            }
+        }
+
+        return new Union(tag, active);
     }
 
     private Dictionary<string, object?> ReadStruct()
