@@ -147,8 +147,8 @@ Phase 4 (Harden):
 
 ## D12 — Out-of-band maintainer actions (flagged to the user; not build blockers)
 
-- **nuget.org trusted-publishing** policy must be extended to cover the two new publishable
-  ids `LadybugDB.Extensions` and `LadybugDB.Arrow` before any `v*` release tag, or their
-  publish step fails. (Local build/pack/test is unaffected.)
+- **nuget.org trusted-publishing** — RESOLVED (2026-06-14): the policy is configured as a
+  `LadybugDB.*` glob, so `LadybugDB.Extensions`, `LadybugDB.Arrow`, and any future ids are
+  already covered. No per-package action needed before a release tag.
 - Deciding whether to later cut/await an upstream **`v0.17.2` engine release** is a separate
   call; this effort ships on `v0.17.1`.

@@ -171,8 +171,9 @@ own third-party dependencies, so the core package stays dependency-free:
 - `LadybugDB.Arrow` — Apache Arrow interop over `Apache.Arrow`.
 
 Both target `net10.0;netstandard2.0` like the core. `Pack` builds and verifies them alongside the
-native family. **Before any `v*` release tag, the nuget.org trusted-publishing policy must be extended
-to cover the `LadybugDB.Extensions` and `LadybugDB.Arrow` ids**, or their publish step fails.
+native family. The nuget.org trusted-publishing policy is configured as a **`LadybugDB.*` glob**, so all
+current and future package ids (including `LadybugDB.Extensions` and `LadybugDB.Arrow`) are already
+covered — no per-package action is needed before a release tag.
 
 ### Source generator
 
