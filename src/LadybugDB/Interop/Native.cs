@@ -69,6 +69,9 @@ internal static partial class Native
     /// <summary>Convenience wrapper for <c>lbug_get_version</c> (owns and frees the returned string).</summary>
     internal static string? GetVersion() => TakeString(GetVersionPtr());
 
+    /// <summary>Convenience wrapper for <c>lbug_get_last_error</c> (consumes and frees the message).</summary>
+    internal static string? GetLastError() => TakeString(GetLastErrorPtr());
+
     /// <summary>Decodes a NUL-terminated UTF-8 C string into a managed string without taking ownership.</summary>
     internal static string? PtrToStringUtf8(IntPtr ptr)
     {

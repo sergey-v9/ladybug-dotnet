@@ -424,6 +424,16 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_value_get_blob")]
     internal static partial LbugState ValueGetBlob(ref LbugValue value, out IntPtr outResult, out ulong outLength);
 
+    // ---- Util ------------------------------------------------------------------------------------
+    [LibraryImport(LibraryName, EntryPoint = "lbug_get_last_error")]
+    internal static partial IntPtr GetLastErrorPtr();
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_int128_t_from_string", StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial LbugState Int128FromString(string str, out LbugInt128 outResult);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_int128_t_to_string")]
+    internal static partial LbugState Int128ToString(LbugInt128 value, out IntPtr outResult);
+
     // ---- Nested (list / array / struct / map) ----------------------------------------------------
     [LibraryImport(LibraryName, EntryPoint = "lbug_value_get_list_size")]
     internal static partial LbugState ValueGetListSize(ref LbugValue value, out ulong outResult);

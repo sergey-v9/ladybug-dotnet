@@ -208,11 +208,22 @@ public sealed class InteropDeclarationParity
             "lbug_connection_create_arrow_rel_table",
             "lbug_connection_create_arrow_rel_table_csr",
             "lbug_connection_drop_arrow_table",
+            "lbug_get_last_error",
+            "lbug_int128_t_from_string",
+            "lbug_int128_t_to_string",
         };
 
         foreach (string ep in required)
         {
             Assert.Contains(ep, lib);
         }
+    }
+
+    [Fact]
+    public void GetLastError_Wrapper_IsDeclaredAgainstBothFiles()
+    {
+        // The convenience wrapper lives in Native.cs; assert the underlying entry point exists in both.
+        Assert.Contains("lbug_get_last_error", EntryPoints("Native.LibraryImport.cs"));
+        Assert.Contains("lbug_get_last_error", EntryPoints("Native.DllImport.cs"));
     }
 }

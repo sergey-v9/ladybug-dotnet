@@ -516,6 +516,19 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_value_get_blob", CallingConvention = Conv)]
     internal static extern LbugState ValueGetBlob(ref LbugValue value, out IntPtr outResult, out ulong outLength);
 
+    // ---- Util ------------------------------------------------------------------------------------
+    [DllImport(LibraryName, EntryPoint = "lbug_get_last_error", CallingConvention = Conv)]
+    internal static extern IntPtr GetLastErrorPtr();
+
+    [DllImport(LibraryName, EntryPoint = "lbug_int128_t_from_string", CallingConvention = Conv)]
+    private static extern LbugState Int128FromStringRaw(byte[] str, out LbugInt128 outResult);
+
+    internal static LbugState Int128FromString(string str, out LbugInt128 outResult)
+        => Int128FromStringRaw(ToUtf8(str), out outResult);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_int128_t_to_string", CallingConvention = Conv)]
+    internal static extern LbugState Int128ToString(LbugInt128 value, out IntPtr outResult);
+
     // ---- Nested (list / array / struct / map) ----------------------------------------------------
     [DllImport(LibraryName, EntryPoint = "lbug_value_get_list_size", CallingConvention = Conv)]
     internal static extern LbugState ValueGetListSize(ref LbugValue value, out ulong outResult);
