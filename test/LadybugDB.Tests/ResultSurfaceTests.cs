@@ -132,4 +132,73 @@ public sealed class ResultSurfaceTests
             TestEnvironment.TryDelete(dbPath);
         }
     }
+
+    [SkippableFact]
+    public void QueryAll_ReturnsEveryResultSet()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            (Database db, Connection conn) = NewGraph(dbPath);
+            using (db)
+            using (conn)
+            {
+                IReadOnlyList<QueryResult> results = conn.QueryAll(
+                    "MATCH (p:Person) RETURN p.name ORDER BY p.name; " +
+                    "MATCH (p:Person) RETURN count(*) AS c;");
+
+                try
+                {
+                    Assert.Equal(2, results.Count);
+
+                    List<object?[]> names = results[0].Rows().ToList();
+                    Assert.Equal(new object?[] { "Alice" }, names[0]);
+                    Assert.Equal(new object?[] { "Bob" }, names[1]);
+
+                    object?[] countRow = results[1].Rows().Single();
+                    Assert.Equal(2L, countRow[0]);
+                }
+                finally
+                {
+                    foreach (QueryResult r in results)
+                    {
+                        r.Dispose();
+                    }
+                }
+            }
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
+    public void HasNextQueryResult_ChainWalksManually()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            (Database db, Connection conn) = NewGraph(dbPath);
+            using (db)
+            using (conn)
+            {
+                using QueryResult first = conn.Query(
+                    "MATCH (p:Person) RETURN count(*) AS c; MATCH (p:Person) RETURN p.name;");
+
+                Assert.True(first.HasNextQueryResult());
+                using QueryResult second = first.GetNextQueryResult();
+                Assert.False(second.HasNextQueryResult());
+                Assert.Equal(2, second.Rows().Count()); // two Person nodes (Alice, Bob)
+            }
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
 }

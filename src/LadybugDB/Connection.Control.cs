@@ -56,4 +56,35 @@ public sealed partial class Connection
             return value;
         });
     }
+
+    /// <summary>
+    /// Executes a (possibly multi-statement) Cypher query and returns every result set, walking the
+    /// engine's result chain so no statement's output is truncated. Each returned
+    /// <see cref="QueryResult"/> is the caller's to dispose.
+    /// </summary>
+    public IReadOnlyList<QueryResult> QueryAll(string cypher)
+    {
+        QueryResult first = Query(cypher);
+        var results = new List<QueryResult> { first };
+        try
+        {
+            QueryResult current = first;
+            while (current.HasNextQueryResult())
+            {
+                current = current.GetNextQueryResult();
+                results.Add(current);
+            }
+
+            return results;
+        }
+        catch
+        {
+            foreach (QueryResult r in results)
+            {
+                r.Dispose();
+            }
+
+            throw;
+        }
+    }
 }
