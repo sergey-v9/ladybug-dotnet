@@ -3,4 +3,9 @@
   <Project Path="demo-graph/DemoGraph.csproj" />
   <Project Path="prepared-statements/PreparedStatements.csproj" />
   <Project Path="result-values/ResultValues.csproj" />
+  <Project Path="async/AsyncExample.csproj" />
+  <Project Path="di-extensions/DiExtensions.csproj" />
+  <Project Path="arrow/ArrowExample.csproj" />
+  <Project Path="engine-extensions/EngineExtensions.csproj" />
+  <Project Path="poco-mapping/PocoMapping.csproj" />
 </Solution>

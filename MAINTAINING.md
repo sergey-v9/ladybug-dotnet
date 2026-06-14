@@ -162,15 +162,46 @@ Rules that should not change without deliberate review:
 
 The shipped RIDs are `win-x64`, `linux-x64`, `linux-arm64`, `osx-x64`, and `osx-arm64`.
 
+### Optional satellite packages
+
+Two additional managed packages share the family version but are published separately and carry their
+own third-party dependencies, so the core package stays dependency-free:
+
+- `LadybugDB.Extensions` — DI/health/resilience/streaming/export over `Microsoft.Extensions.*`.
+- `LadybugDB.Arrow` — Apache Arrow interop over `Apache.Arrow`.
+
+Both target `net10.0;netstandard2.0` like the core. `Pack` builds and verifies them alongside the
+native family. **Before any `v*` release tag, the nuget.org trusted-publishing policy must be extended
+to cover the `LadybugDB.Extensions` and `LadybugDB.Arrow` ids**, or their publish step fails.
+
+### Source generator
+
+The POCO mapping generator (`LadybugDB.SourceGen`, a `netstandard2.0` Roslyn analyzer) is shipped
+**inside** the `LadybugDB` package under `analyzers/dotnet/cs/`. It emits the `LadybugRowMappers`
+container and the `Map<T>`/`MapAsync<T>` extension methods into the consumer assembly only; the core
+package deliberately ships no `LadybugRowMappers` type to avoid a cross-assembly type collision.
+
+### Native loading on Unix
+
+On Linux/macOS the resolver loads the engine with `dlopen(RTLD_NOW | RTLD_GLOBAL)` (see
+`src/LadybugDB/Interop/UnixNativeMethods.cs`) so a dynamically loaded engine extension can resolve the
+engine's symbols — matching what the Java/Node/Python/Rust bindings do. The path is marshalled as UTF-8.
+The custom resolver is also wired for `netstandard2.0` (which has no `[ModuleInitializer]`). Do not
+regress this without verifying engine-extension loading end-to-end on Linux.
+
 ## Examples
 
-`examples/` contains two categories:
+`examples/` contains:
 
-- Database-usage examples: quickstart, demo graph, prepared statements, and result/value materialization.
-  These consume published NuGet packages and share the example package version in
-  `examples/Directory.Build.props`.
+- Core database-usage examples: `quickstart`, `demo-graph`, `prepared-statements`, `result-values`.
+- Capability examples: `async` (Task/`IAsyncEnumerable`/cancellation), `engine-extensions`
+  (`InstallExtension`/`LoadExtension`), `poco-mapping` (`[LadybugRow]` + `Map<T>`), `arrow`
+  (`LadybugDB.Arrow` `RecordBatch` round-trip), and `di-extensions` (`LadybugDB.Extensions` DI, health
+  check, resilience, and result export).
 - `native-loading/`: deployment/package-loading example showing bundled native NuGet vs. system-installed
   native library behavior.
 
-Examples are not currently part of CI because their package-restore behavior depends on a published package
-version being available.
+All examples consume published NuGet packages and share the example package version in
+`examples/Directory.Build.props`. They are not part of CI because their package restore depends on a
+published package version being available, so update that version when cutting a release and keep the
+example code in sync with the public API.
