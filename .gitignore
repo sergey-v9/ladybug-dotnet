@@ -6,3 +6,6 @@ artifacts/
 download/
 *.user
 .vs/
+
+# Vendored second C# binding, kept locally for analysis only (not part of this repo)
+reference/
