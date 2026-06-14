@@ -100,6 +100,19 @@ public sealed partial class QueryResult : IDisposable
         return Native.TakeString(pointer) ?? string.Empty;
     }
 
+    /// <summary>The logical type of the column at the given zero-based index.</summary>
+    public LogicalType GetColumnType(ulong index)
+    {
+        ThrowIfDisposed();
+        LbugState state = Native.QueryResultGetColumnDataType(ref _handle, index, out LbugLogicalType native);
+        if (state != LbugState.Success)
+        {
+            throw new LadybugException($"Failed to read the data type of column {index}.");
+        }
+
+        return LogicalType.FromOwnedHandle(ref native);
+    }
+
     /// <summary>All column names, cached after first access.</summary>
     public IReadOnlyList<string> ColumnNames
     {

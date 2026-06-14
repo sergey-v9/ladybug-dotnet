@@ -45,4 +45,29 @@ public sealed class ResultSurfaceTests
             TestEnvironment.TryDelete(dbPath);
         }
     }
+
+    [SkippableFact]
+    public void GetColumnType_ReturnsPerColumnLogicalTypes()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            (Database db, Connection conn) = NewGraph(dbPath);
+            using (db)
+            using (conn)
+            {
+                using QueryResult result = conn.Query("MATCH (p:Person) RETURN p.name, p.age");
+
+                Assert.Equal(DataTypeId.String, result.GetColumnType(0).Id);
+                Assert.Equal(DataTypeId.Int64, result.GetColumnType(1).Id);
+                Assert.Equal("STRING", result.GetColumnType(0).ToString());
+            }
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
 }
