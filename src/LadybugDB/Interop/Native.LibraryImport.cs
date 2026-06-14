@@ -163,6 +163,12 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_get_next_query_result")]
     internal static partial LbugState QueryResultGetNextQueryResult(ref LbugQueryResult queryResult, out LbugQueryResult outNextQueryResult);
 
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_get_arrow_schema")]
+    internal static partial LbugState QueryResultGetArrowSchema(ref LbugQueryResult queryResult, out ArrowSchema outSchema);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_get_next_arrow_chunk")]
+    internal static partial LbugState QueryResultGetNextArrowChunk(ref LbugQueryResult queryResult, long chunkSize, out ArrowArray outArrowArray);
+
     [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_has_next")]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static partial bool QueryResultHasNext(ref LbugQueryResult queryResult);

@@ -234,6 +234,12 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_query_result_get_next_query_result", CallingConvention = Conv)]
     internal static extern LbugState QueryResultGetNextQueryResult(ref LbugQueryResult queryResult, out LbugQueryResult outNextQueryResult);
 
+    [DllImport(LibraryName, EntryPoint = "lbug_query_result_get_arrow_schema", CallingConvention = Conv)]
+    internal static extern LbugState QueryResultGetArrowSchema(ref LbugQueryResult queryResult, out ArrowSchema outSchema);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_query_result_get_next_arrow_chunk", CallingConvention = Conv)]
+    internal static extern LbugState QueryResultGetNextArrowChunk(ref LbugQueryResult queryResult, long chunkSize, out ArrowArray outArrowArray);
+
     [DllImport(LibraryName, EntryPoint = "lbug_query_result_has_next", CallingConvention = Conv)]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool QueryResultHasNext(ref LbugQueryResult queryResult);
