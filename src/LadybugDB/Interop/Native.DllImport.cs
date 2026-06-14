@@ -64,23 +64,26 @@ internal static partial class Native
     internal static extern LbugState ConnectionGetMaxNumThreadForExec(ref LbugConnection connection, out ulong outResult);
 
     // ---- Arrow ingest (for WS-E) -----------------------------------------------------------------
+    // ARROW-1: schema/arrays are raw IntPtrs (the original Apache.Arrow-allocated outer shells), not
+    // `ref ArrowSchema`/`ref ArrowArray`. A `ref struct` would hand the engine a pinned COPY and leak
+    // the real shells. Kept identical to Native.LibraryImport.cs. The Arrow layer frees the shells.
     [DllImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_table", CallingConvention = Conv)]
-    private static extern LbugState ConnectionCreateArrowTableRaw(ref LbugConnection connection, byte[] tableName, ref ArrowSchema schema, ref ArrowArray arrays, ulong numArrays, out LbugQueryResult outQueryResult);
+    private static extern LbugState ConnectionCreateArrowTableRaw(ref LbugConnection connection, byte[] tableName, IntPtr schema, IntPtr arrays, ulong numArrays, out LbugQueryResult outQueryResult);
 
-    internal static LbugState ConnectionCreateArrowTable(ref LbugConnection connection, string tableName, ref ArrowSchema schema, ref ArrowArray arrays, ulong numArrays, out LbugQueryResult outQueryResult)
-        => ConnectionCreateArrowTableRaw(ref connection, ToUtf8(tableName), ref schema, ref arrays, numArrays, out outQueryResult);
+    internal static LbugState ConnectionCreateArrowTable(ref LbugConnection connection, string tableName, IntPtr schema, IntPtr arrays, ulong numArrays, out LbugQueryResult outQueryResult)
+        => ConnectionCreateArrowTableRaw(ref connection, ToUtf8(tableName), schema, arrays, numArrays, out outQueryResult);
 
     [DllImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_rel_table", CallingConvention = Conv)]
-    private static extern LbugState ConnectionCreateArrowRelTableRaw(ref LbugConnection connection, byte[] tableName, byte[] srcTableName, byte[] dstTableName, ref ArrowSchema schema, ref ArrowArray arrays, ulong numArrays, out LbugQueryResult outQueryResult);
+    private static extern LbugState ConnectionCreateArrowRelTableRaw(ref LbugConnection connection, byte[] tableName, byte[] srcTableName, byte[] dstTableName, IntPtr schema, IntPtr arrays, ulong numArrays, out LbugQueryResult outQueryResult);
 
-    internal static LbugState ConnectionCreateArrowRelTable(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, ref ArrowSchema schema, ref ArrowArray arrays, ulong numArrays, out LbugQueryResult outQueryResult)
-        => ConnectionCreateArrowRelTableRaw(ref connection, ToUtf8(tableName), ToUtf8(srcTableName), ToUtf8(dstTableName), ref schema, ref arrays, numArrays, out outQueryResult);
+    internal static LbugState ConnectionCreateArrowRelTable(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, IntPtr schema, IntPtr arrays, ulong numArrays, out LbugQueryResult outQueryResult)
+        => ConnectionCreateArrowRelTableRaw(ref connection, ToUtf8(tableName), ToUtf8(srcTableName), ToUtf8(dstTableName), schema, arrays, numArrays, out outQueryResult);
 
     [DllImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_rel_table_csr", CallingConvention = Conv)]
-    private static extern LbugState ConnectionCreateArrowRelTableCsrRaw(ref LbugConnection connection, byte[] tableName, byte[] srcTableName, byte[] dstTableName, ref ArrowSchema indicesSchema, ref ArrowArray indicesArrays, ulong numIndicesArrays, ref ArrowSchema indptrSchema, ref ArrowArray indptrArrays, ulong numIndptrArrays, byte[]? dstColName, out LbugQueryResult outQueryResult);
+    private static extern LbugState ConnectionCreateArrowRelTableCsrRaw(ref LbugConnection connection, byte[] tableName, byte[] srcTableName, byte[] dstTableName, IntPtr indicesSchema, IntPtr indicesArrays, ulong numIndicesArrays, IntPtr indptrSchema, IntPtr indptrArrays, ulong numIndptrArrays, byte[]? dstColName, out LbugQueryResult outQueryResult);
 
-    internal static LbugState ConnectionCreateArrowRelTableCsr(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, ref ArrowSchema indicesSchema, ref ArrowArray indicesArrays, ulong numIndicesArrays, ref ArrowSchema indptrSchema, ref ArrowArray indptrArrays, ulong numIndptrArrays, string? dstColName, out LbugQueryResult outQueryResult)
-        => ConnectionCreateArrowRelTableCsrRaw(ref connection, ToUtf8(tableName), ToUtf8(srcTableName), ToUtf8(dstTableName), ref indicesSchema, ref indicesArrays, numIndicesArrays, ref indptrSchema, ref indptrArrays, numIndptrArrays, dstColName is null ? null : ToUtf8(dstColName), out outQueryResult);
+    internal static LbugState ConnectionCreateArrowRelTableCsr(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, IntPtr indicesSchema, IntPtr indicesArrays, ulong numIndicesArrays, IntPtr indptrSchema, IntPtr indptrArrays, ulong numIndptrArrays, string? dstColName, out LbugQueryResult outQueryResult)
+        => ConnectionCreateArrowRelTableCsrRaw(ref connection, ToUtf8(tableName), ToUtf8(srcTableName), ToUtf8(dstTableName), indicesSchema, indicesArrays, numIndicesArrays, indptrSchema, indptrArrays, numIndptrArrays, dstColName is null ? null : ToUtf8(dstColName), out outQueryResult);
 
     [DllImport(LibraryName, EntryPoint = "lbug_connection_drop_arrow_table", CallingConvention = Conv)]
     private static extern LbugState ConnectionDropArrowTableRaw(ref LbugConnection connection, byte[] tableName, out LbugQueryResult outQueryResult);

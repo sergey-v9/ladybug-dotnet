@@ -100,17 +100,28 @@ public static partial class LadybugArrow
         using RecordBatch exportable = batch.Clone();
         unsafe
         {
-            // Allocate C-Data blocks via Apache.Arrow's own allocator (paired with its exporters'
-            // release callbacks). The engine OWNS these after the call (success OR failure), so we
-            // never free or release them ourselves.
+            // Allocate the outer C-Data shells via Apache.Arrow's own allocator (HGlobal). The engine
+            // MOVES the inner buffers out of these shells and nulls each shell's release callback
+            // (success OR failure), so we must NOT re-release the contents — but we DO own the outer
+            // shell allocations and free them in a finally below (ARROW-1: they used to leak).
             CArrowSchema* cSchema = CArrowSchema.Create();
             CArrowArray* cArray = CArrowArray.Create();
-            CArrowSchemaExporter.ExportSchema(exportable.Schema, cSchema);
-            CArrowArrayExporter.ExportRecordBatch(exportable, cArray);
+            try
+            {
+                CArrowSchemaExporter.ExportSchema(exportable.Schema, cSchema);
+                CArrowArrayExporter.ExportRecordBatch(exportable, cArray);
 
-            // numArrays = 1: a single contiguous Arrow struct-array for the whole batch.
-            using QueryResult result = connection.CreateArrowTableInternal(tableName, (IntPtr)cSchema, (IntPtr)cArray, 1UL);
-            GC.KeepAlive(result);
+                // numArrays = 1: a single contiguous Arrow struct-array for the whole batch.
+                using QueryResult result = connection.CreateArrowTableInternal(tableName, (IntPtr)cSchema, (IntPtr)cArray, 1UL);
+                GC.KeepAlive(result);
+            }
+            finally
+            {
+                // After the engine nulled the release callbacks, Free only FreeHGlobals the shells (no
+                // double-release). Runs even if the export or ingest threw, freeing the shells we own.
+                CArrowArray.Free(cArray);
+                CArrowSchema.Free(cSchema);
+            }
         }
     }
 
@@ -148,17 +159,27 @@ public static partial class LadybugArrow
             throw new ArgumentNullException(nameof(toTable));
         }
 
-        // See CreateArrowTable: clone into allocator-backed memory so an imported batch re-exports.
+        // See CreateArrowTable: clone into allocator-backed memory so an imported batch re-exports,
+        // and free the outer C-Data shells in a finally after the engine moves their contents out.
         using RecordBatch exportable = batch.Clone();
         unsafe
         {
             CArrowSchema* cSchema = CArrowSchema.Create();
             CArrowArray* cArray = CArrowArray.Create();
-            CArrowSchemaExporter.ExportSchema(exportable.Schema, cSchema);
-            CArrowArrayExporter.ExportRecordBatch(exportable, cArray);
+            try
+            {
+                CArrowSchemaExporter.ExportSchema(exportable.Schema, cSchema);
+                CArrowArrayExporter.ExportRecordBatch(exportable, cArray);
 
-            using QueryResult result = connection.CreateArrowRelTableInternal(tableName, fromTable, toTable, (IntPtr)cSchema, (IntPtr)cArray, 1UL);
-            GC.KeepAlive(result);
+                using QueryResult result = connection.CreateArrowRelTableInternal(tableName, fromTable, toTable, (IntPtr)cSchema, (IntPtr)cArray, 1UL);
+                GC.KeepAlive(result);
+            }
+            finally
+            {
+                // After the engine nulled the release callbacks, Free only FreeHGlobals the shells.
+                CArrowArray.Free(cArray);
+                CArrowSchema.Free(cSchema);
+            }
         }
 
         // NOTE (CSR best-effort, D6): lbug_connection_create_arrow_rel_table_csr (CSR ingest, and the

@@ -53,14 +53,18 @@ internal static partial class Native
     internal static partial LbugState ConnectionGetMaxNumThreadForExec(ref LbugConnection connection, out ulong outResult);
 
     // ---- Arrow ingest (for WS-E) -----------------------------------------------------------------
+    // ARROW-1: the schema/arrays are passed as raw IntPtrs (the original Apache.Arrow-allocated outer
+    // shells) rather than `ref ArrowSchema`/`ref ArrowArray`. Marshalling a `ref struct` would hand
+    // the engine the address of a pinned COPY and leave the real shells (which the engine moves/frees
+    // the inner buffers out of) unreleased. The Arrow layer frees the outer shells after the call.
     [LibraryImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_table", StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial LbugState ConnectionCreateArrowTable(ref LbugConnection connection, string tableName, ref ArrowSchema schema, ref ArrowArray arrays, ulong numArrays, out LbugQueryResult outQueryResult);
+    internal static partial LbugState ConnectionCreateArrowTable(ref LbugConnection connection, string tableName, IntPtr schema, IntPtr arrays, ulong numArrays, out LbugQueryResult outQueryResult);
 
     [LibraryImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_rel_table", StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial LbugState ConnectionCreateArrowRelTable(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, ref ArrowSchema schema, ref ArrowArray arrays, ulong numArrays, out LbugQueryResult outQueryResult);
+    internal static partial LbugState ConnectionCreateArrowRelTable(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, IntPtr schema, IntPtr arrays, ulong numArrays, out LbugQueryResult outQueryResult);
 
     [LibraryImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_rel_table_csr", StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial LbugState ConnectionCreateArrowRelTableCsr(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, ref ArrowSchema indicesSchema, ref ArrowArray indicesArrays, ulong numIndicesArrays, ref ArrowSchema indptrSchema, ref ArrowArray indptrArrays, ulong numIndptrArrays, string? dstColName, out LbugQueryResult outQueryResult);
+    internal static partial LbugState ConnectionCreateArrowRelTableCsr(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, IntPtr indicesSchema, IntPtr indicesArrays, ulong numIndicesArrays, IntPtr indptrSchema, IntPtr indptrArrays, ulong numIndptrArrays, string? dstColName, out LbugQueryResult outQueryResult);
 
     [LibraryImport(LibraryName, EntryPoint = "lbug_connection_drop_arrow_table", StringMarshalling = StringMarshalling.Utf8)]
     internal static partial LbugState ConnectionDropArrowTable(ref LbugConnection connection, string tableName, out LbugQueryResult outQueryResult);
