@@ -50,6 +50,19 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_connection_execute", CallingConvention = Conv)]
     internal static extern LbugState ConnectionExecute(ref LbugConnection connection, ref LbugPreparedStatement preparedStatement, out LbugQueryResult outQueryResult);
 
+    // ---- Connection control ----------------------------------------------------------------------
+    [DllImport(LibraryName, EntryPoint = "lbug_connection_interrupt", CallingConvention = Conv)]
+    internal static extern void ConnectionInterrupt(ref LbugConnection connection);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_connection_set_query_timeout", CallingConvention = Conv)]
+    internal static extern LbugState ConnectionSetQueryTimeout(ref LbugConnection connection, ulong timeoutInMs);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_connection_set_max_num_thread_for_exec", CallingConvention = Conv)]
+    internal static extern LbugState ConnectionSetMaxNumThreadForExec(ref LbugConnection connection, ulong numThreads);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_connection_get_max_num_thread_for_exec", CallingConvention = Conv)]
+    internal static extern LbugState ConnectionGetMaxNumThreadForExec(ref LbugConnection connection, out ulong outResult);
+
     // ---- PreparedStatement -----------------------------------------------------------------------
     [DllImport(LibraryName, EntryPoint = "lbug_prepared_statement_destroy", CallingConvention = Conv)]
     internal static extern void PreparedStatementDestroy(ref LbugPreparedStatement preparedStatement);

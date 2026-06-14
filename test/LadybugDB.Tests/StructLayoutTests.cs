@@ -117,3 +117,71 @@ public sealed class StructLayoutTests
         Assert.Equal(8, (int)Marshal.OffsetOf<ArrowArray>(nameof(ArrowArray.NullCount)));
     }
 }
+
+/// <summary>
+/// Cross-TFM guard: <c>Native.LibraryImport.cs</c> (net7+) and <c>Native.DllImport.cs</c> (ns2.0)
+/// are hand-kept identical. On net10.0 only the LibraryImport partial compiles, so reflection over
+/// the loaded assembly cannot see the ns2.0 declarations. We instead parse both source files and
+/// assert they declare the SAME set of native entry points (the <c>EntryPoint = "..."</c> strings).
+/// Pure text inspection — no native library required.
+/// </summary>
+public sealed class InteropDeclarationParity
+{
+    private static readonly System.Text.RegularExpressions.Regex EntryPointPattern =
+        new(@"EntryPoint\s*=\s*""(?<ep>[A-Za-z0-9_]+)""");
+
+    private static string InteropDir([System.Runtime.CompilerServices.CallerFilePath] string? thisFile = null)
+    {
+        // thisFile = ...\test\LadybugDB.Tests\StructLayoutTests.cs
+        string testDir = System.IO.Path.GetDirectoryName(thisFile!)!;             // ...\LadybugDB.Tests
+        string root = System.IO.Path.GetFullPath(System.IO.Path.Combine(testDir, "..", ".."));
+        return System.IO.Path.Combine(root, "src", "LadybugDB", "Interop");
+    }
+
+    private static System.Collections.Generic.HashSet<string> EntryPoints(string fileName)
+    {
+        string path = System.IO.Path.Combine(InteropDir(), fileName);
+        string text = System.IO.File.ReadAllText(path);
+        var set = new System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal);
+        foreach (System.Text.RegularExpressions.Match m in EntryPointPattern.Matches(text))
+        {
+            set.Add(m.Groups["ep"].Value);
+        }
+
+        return set;
+    }
+
+    [Fact]
+    public void LibraryImport_And_DllImport_DeclareTheSameEntryPoints()
+    {
+        var lib = EntryPoints("Native.LibraryImport.cs");
+        var dll = EntryPoints("Native.DllImport.cs");
+
+        var onlyInLib = new System.Collections.Generic.SortedSet<string>(lib);
+        onlyInLib.ExceptWith(dll);
+        var onlyInDll = new System.Collections.Generic.SortedSet<string>(dll);
+        onlyInDll.ExceptWith(lib);
+
+        Assert.True(
+            onlyInLib.Count == 0 && onlyInDll.Count == 0,
+            $"Interop declaration drift.\n  Only in LibraryImport: {string.Join(", ", onlyInLib)}\n  Only in DllImport: {string.Join(", ", onlyInDll)}");
+    }
+
+    [Fact]
+    public void BothFiles_DeclareTheRequiredNewEntryPoints()
+    {
+        var lib = EntryPoints("Native.LibraryImport.cs");
+        string[] required =
+        {
+            "lbug_connection_interrupt",
+            "lbug_connection_set_query_timeout",
+            "lbug_connection_set_max_num_thread_for_exec",
+            "lbug_connection_get_max_num_thread_for_exec",
+        };
+
+        foreach (string ep in required)
+        {
+            Assert.Contains(ep, lib);
+        }
+    }
+}

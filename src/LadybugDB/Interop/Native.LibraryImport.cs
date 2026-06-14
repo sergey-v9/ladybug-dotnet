@@ -39,6 +39,19 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_connection_execute")]
     internal static partial LbugState ConnectionExecute(ref LbugConnection connection, ref LbugPreparedStatement preparedStatement, out LbugQueryResult outQueryResult);
 
+    // ---- Connection control ----------------------------------------------------------------------
+    [LibraryImport(LibraryName, EntryPoint = "lbug_connection_interrupt")]
+    internal static partial void ConnectionInterrupt(ref LbugConnection connection);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_connection_set_query_timeout")]
+    internal static partial LbugState ConnectionSetQueryTimeout(ref LbugConnection connection, ulong timeoutInMs);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_connection_set_max_num_thread_for_exec")]
+    internal static partial LbugState ConnectionSetMaxNumThreadForExec(ref LbugConnection connection, ulong numThreads);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_connection_get_max_num_thread_for_exec")]
+    internal static partial LbugState ConnectionGetMaxNumThreadForExec(ref LbugConnection connection, out ulong outResult);
+
     // ---- PreparedStatement -----------------------------------------------------------------------
     [LibraryImport(LibraryName, EntryPoint = "lbug_prepared_statement_destroy")]
     internal static partial void PreparedStatementDestroy(ref LbugPreparedStatement preparedStatement);
