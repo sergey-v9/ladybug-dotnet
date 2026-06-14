@@ -146,4 +146,45 @@ public sealed class LadybugRowGeneratorTests
         Assert.Contains("global::Demo.A", generated);
         Assert.Contains("global::Demo.B", generated);
     }
+
+    [Fact]
+    public void Generator_is_incremental_and_caches_unchanged_models()
+    {
+        var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(SimpleRecord);
+        var stub = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(GeneratorHarness.StubForTests);
+        var refs = Basic.Reference.Assemblies.Net80.References.All;
+        var options = new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(
+            Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary);
+        var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+            "Sample", new[] { tree, stub }, refs, options);
+
+        var generator = new LadybugDB.SourceGen.LadybugRowGenerator();
+        Microsoft.CodeAnalysis.GeneratorDriver driver =
+            Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create(
+                new[] { generator.AsSourceGenerator() },
+                driverOptions: new Microsoft.CodeAnalysis.GeneratorDriverOptions(
+                    Microsoft.CodeAnalysis.IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+        // Re-run with an unrelated trivial edit: outputs should be served from cache.
+        var compilation2 = compilation.AddSyntaxTrees(
+            Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("namespace Unrelated { class Z { } }"));
+        driver = driver.RunGenerators(compilation2);
+
+        var steps = driver.GetRunResult().Results
+            .SelectMany(r => r.TrackedSteps)
+            .Where(kvp => kvp.Key == "LadybugRowModels")
+            .SelectMany(kvp => kvp.Value)
+            .SelectMany(s => s.Outputs)
+            .ToArray();
+
+        Assert.NotEmpty(steps);
+        // After an unrelated edit the equatable model is either served straight from cache or
+        // recomputed to an equal value (Unchanged) — both prevent downstream regeneration, which
+        // is the property that matters. A non-equatable model would report Modified here.
+        Assert.All(steps, o => Assert.True(
+            o.Reason == Microsoft.CodeAnalysis.IncrementalStepRunReason.Cached
+            || o.Reason == Microsoft.CodeAnalysis.IncrementalStepRunReason.Unchanged,
+            $"Expected the model step to be cached/unchanged, but was {o.Reason} (model not equatable?)."));
+    }
 }
