@@ -14,10 +14,18 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Xunit.SkippableFact" Version="1.5.61" />
+    <!-- In-process Roslyn harness for asserting LadybugDB.SourceGen output (no native lib). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.9.2" />
+    <PackageReference Include="Basic.Reference.Assemblies.Net80" Version="1.7.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LadybugDB\LadybugDB.csproj" />
+    <!-- Reference the generator as an analyzer so the end-to-end Map<T>() round-trip sees
+         generated mappers in this test compilation. ReferenceOutputAssembly=true also exposes
+         the generator type to the in-process Roslyn harness (GeneratorDriver.cs). -->
+    <ProjectReference Include="..\..\src\LadybugDB.SourceGen\LadybugDB.SourceGen.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
   <!-- Copy the native library next to the test output if it has been placed under lib/runtimes/<rid>/native. -->
