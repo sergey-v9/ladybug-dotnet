@@ -175,4 +175,20 @@ public sealed class DiagnosticsTests
         Assert.Equal(ActivityStatusCode.Error, activity.Status);
         Assert.Equal("cancelled", activity.StatusDescription);
     }
+
+    [Fact]
+    public void No_activity_listener_means_no_activity_allocated()
+    {
+        // No ActivityListener attached for "LadybugDB" in this test => StartActivity returns null.
+        // We assert Activity.Current stays null across the scope, proving nothing was recorded.
+        Assert.Null(Activity.Current);
+
+        using (QueryScope scope = LadybugInstrumentation.StartQuery("RETURN 1"))
+        {
+            Assert.Null(Activity.Current); // no activity created/entered
+            scope.SetSuccess();
+        }
+
+        Assert.Null(Activity.Current);
+    }
 }
