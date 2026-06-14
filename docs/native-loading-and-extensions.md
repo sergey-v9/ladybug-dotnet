@@ -101,21 +101,35 @@ a no-op there and the resolver skips straight to the normal load path.
 
 ## Using extensions from C#
 
-Extensions run through the normal query path. Today you can install and load them directly:
+Extensions run through the normal query path. The ergonomic helpers
+`Connection.InstallExtension(name)` / `Connection.LoadExtension(name)`
+(`src/LadybugDB/Connection.Extensions.cs`) validate the name and issue the `INSTALL` /
+`LOAD EXTENSION` statements for you:
 
 ```csharp
 using var db = new Database(path);
 using var conn = new Connection(db);
 
-conn.Query("INSTALL json");          // contacts the extension repository — needs network
-conn.Query("LOAD EXTENSION json");   // dlopen()s the extension .so; resolves engine symbols
+conn.InstallExtension("json");   // INSTALL json;        — contacts the extension repository (needs network)
+conn.LoadExtension("json");      // LOAD EXTENSION json;  — dlopen()s the extension .so; resolves engine symbols
 
-using var result = conn.Query("RETURN cast('lbug' AS JSON) AS j");
+using var result = conn.Query("RETURN cast('\"lbug\"' AS JSON) AS j");
 ```
 
-Ergonomic `Connection.InstallExtension(name)` / `LoadExtension(name)` helpers (which validate the
-name and issue the `INSTALL` / `LOAD EXTENSION` statements for you) are added in a later phase; the
-**loader** behavior documented above is the part that makes either form work on Linux/macOS.
+Equivalently, you can issue the statements directly through `Connection.Query`:
+
+```csharp
+conn.Query("INSTALL json");
+conn.Query("LOAD EXTENSION json");
+```
+
+`InstallExtension` / `LoadExtension` require the extension name to be a **bare identifier** (letters,
+digits, underscore); a `null` name throws `ArgumentNullException`, and an empty/whitespace name or one
+containing any other character (whitespace, `;`, `-`, quotes, path separators, …) throws
+`ArgumentException`, so the helper can only ever run a single `INSTALL` / `LOAD EXTENSION` statement.
+A failure surfaced by the engine itself (unknown extension, no network, not installed) is a
+`LadybugQueryException`. The **loader** behavior documented above is the part that makes either form
+work on Linux/macOS.
 
 ## Verifying the fix
 
@@ -123,4 +137,6 @@ The loader's flag math and platform gating are covered by ungated unit tests
 (`test/LadybugDB.Tests/UnixLoaderTests.cs`, `ResolverTests.cs`) that run on every OS without a native
 engine. The end-to-end behavior — that a real extension (`json`) loads and resolves the engine's
 symbols rather than failing with *undefined symbol* — is exercised by native-gated, offline-tolerant
-tests on a host where the native library and the extension repository are reachable.
+tests (`test/LadybugDB.Tests/ExtensionTests.cs`) on a host where the native library and the extension
+repository are reachable. Those tests `Skip` on a download/network failure but **fail loudly** on a
+genuine symbol-resolution error (the exact regression the `RTLD_GLOBAL` load guards against).
