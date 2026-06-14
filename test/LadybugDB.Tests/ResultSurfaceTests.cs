@@ -100,4 +100,36 @@ public sealed class ResultSurfaceTests
             TestEnvironment.TryDelete(dbPath);
         }
     }
+
+    [SkippableFact]
+    public void ResetIterator_AllowsReReadingAllRows()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            (Database db, Connection conn) = NewGraph(dbPath);
+            using (db)
+            using (conn)
+            {
+                using QueryResult result = conn.Query("MATCH (p:Person) RETURN p.name ORDER BY p.name");
+
+                List<object?[]> first = result.Rows().ToList();
+                Assert.Equal(2, first.Count);
+                Assert.False(result.HasNext());
+
+                result.ResetIterator();
+
+                Assert.True(result.HasNext());
+                List<object?[]> second = result.Rows().ToList();
+                Assert.Equal(2, second.Count);
+                Assert.Equal(first[0][0], second[0][0]);
+            }
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
 }

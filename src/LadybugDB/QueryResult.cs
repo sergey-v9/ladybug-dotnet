@@ -180,6 +180,36 @@ public sealed partial class QueryResult : IDisposable
         return new FlatTuple(tuple);
     }
 
+    /// <summary>Rewinds the tuple iterator to the first row so the result can be re-read.</summary>
+    public void ResetIterator()
+    {
+        ThrowIfDisposed();
+        Native.QueryResultResetIterator(ref _handle);
+    }
+
+    /// <summary>Whether another result set follows this one (multi-statement queries).</summary>
+    public bool HasNextQueryResult()
+    {
+        ThrowIfDisposed();
+        return Native.QueryResultHasNextQueryResult(ref _handle);
+    }
+
+    /// <summary>
+    /// Returns the next result set in a multi-statement query. The returned result is an independent
+    /// <see cref="QueryResult"/> that owns and destroys its own native handle.
+    /// </summary>
+    public QueryResult GetNextQueryResult()
+    {
+        ThrowIfDisposed();
+        LbugState state = Native.QueryResultGetNextQueryResult(ref _handle, out LbugQueryResult next);
+        if (state != LbugState.Success)
+        {
+            throw new LadybugException("Failed to advance to the next query result.");
+        }
+
+        return new QueryResult(next);
+    }
+
     /// <summary>
     /// Enumerates the result as fully materialized rows. Each row is read into managed memory before
     /// the iterator advances, which makes it safe against the engine's reused tuple buffer.
