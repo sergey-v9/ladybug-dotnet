@@ -286,6 +286,24 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_interval")]
     internal static partial IntPtr ValueCreateInterval(LbugInterval value);
 
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_int128")]
+    internal static partial IntPtr ValueCreateInt128(LbugInt128 value);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_decimal", StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial IntPtr ValueCreateDecimal(string value, uint precision, uint scale);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_internal_id")]
+    internal static partial IntPtr ValueCreateInternalId(LbugInternalId value);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_timestamp_ns")]
+    internal static partial IntPtr ValueCreateTimestampNs(LbugTimestamp value);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_timestamp_ms")]
+    internal static partial IntPtr ValueCreateTimestampMs(LbugTimestamp value);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_timestamp_sec")]
+    internal static partial IntPtr ValueCreateTimestampSec(LbugTimestamp value);
+
     [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_list")]
     internal static partial LbugState ValueCreateList(ulong numElements, [In] IntPtr[] elements, out IntPtr outValue);
 

@@ -191,6 +191,12 @@ public sealed class InteropDeclarationParity
             "lbug_data_type_equals",
             "lbug_data_type_get_child_type",
             "lbug_data_type_get_num_elements_in_array",
+            "lbug_value_create_int128",
+            "lbug_value_create_decimal",
+            "lbug_value_create_internal_id",
+            "lbug_value_create_timestamp_ns",
+            "lbug_value_create_timestamp_ms",
+            "lbug_value_create_timestamp_sec",
         };
 
         foreach (string ep in required)

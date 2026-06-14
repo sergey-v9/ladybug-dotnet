@@ -360,6 +360,27 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_value_create_interval", CallingConvention = Conv)]
     internal static extern IntPtr ValueCreateInterval(LbugInterval value);
 
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_int128", CallingConvention = Conv)]
+    internal static extern IntPtr ValueCreateInt128(LbugInt128 value);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_decimal", CallingConvention = Conv)]
+    private static extern IntPtr ValueCreateDecimalRaw(byte[] value, uint precision, uint scale);
+
+    internal static IntPtr ValueCreateDecimal(string value, uint precision, uint scale)
+        => ValueCreateDecimalRaw(ToUtf8(value), precision, scale);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_internal_id", CallingConvention = Conv)]
+    internal static extern IntPtr ValueCreateInternalId(LbugInternalId value);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_timestamp_ns", CallingConvention = Conv)]
+    internal static extern IntPtr ValueCreateTimestampNs(LbugTimestamp value);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_timestamp_ms", CallingConvention = Conv)]
+    internal static extern IntPtr ValueCreateTimestampMs(LbugTimestamp value);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_timestamp_sec", CallingConvention = Conv)]
+    internal static extern IntPtr ValueCreateTimestampSec(LbugTimestamp value);
+
     [DllImport(LibraryName, EntryPoint = "lbug_value_create_list", CallingConvention = Conv)]
     internal static extern LbugState ValueCreateList(ulong numElements, [In] IntPtr[] elements, out IntPtr outValue);
 
