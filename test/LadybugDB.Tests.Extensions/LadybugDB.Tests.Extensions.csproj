@@ -13,10 +13,23 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.61" />
+    <!-- BuildServiceProvider() lives in the concrete DI package; the package under test only
+         needs the abstractions, but the DI registration tests build a provider. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LadybugDB.Extensions\LadybugDB.Extensions.csproj" />
   </ItemGroup>
+
+  <!-- Copy the native library next to the test output (when staged under lib/runtimes/<rid>/native)
+       so the QueryResultExtensions native smoke tests run against the real engine instead of skipping. -->
+  <Target Name="PlaceNativeLibrary" AfterTargets="Build">
+    <ItemGroup>
+      <_LadybugNative Include="$(NativeLibDir)runtimes\$(TargetRid)\native\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_LadybugNative)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_LadybugNative)' != ''" />
+  </Target>
 
 </Project>
