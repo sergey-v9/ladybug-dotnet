@@ -19,9 +19,15 @@ internal static class Emitter
         sb.AppendLine($"    public static partial class {MapperClassName}");
         sb.AppendLine("    {");
 
+        // One generic entry point each for Map / MapAsync, dispatched at compile time on typeof(T).
+        EmitMapDispatcher(sb, models);
+        EmitMapAsyncDispatcher(sb, models);
+
+        // Per-type, non-generic materializers (avoids CS0111 collisions between identical generic
+        // signatures, and keeps each construction body concrete and reflection-free).
         foreach (RowModel model in models)
         {
-            EmitMapForType(sb, model);
+            EmitTypeMappers(sb, model);
         }
 
         // One shared, case-insensitive column-name -> ordinal index builder for all mappers.
@@ -32,15 +38,43 @@ internal static class Emitter
         return sb.ToString();
     }
 
-    private static void EmitMapForType(StringBuilder sb, RowModel model)
+    private static void EmitMapDispatcher(StringBuilder sb, ImmutableArray<RowModel> models)
     {
-        // Map<T>() — constrained at compile time to this exact T via the type constraint, so the
-        // generic dispatch resolves to this overload for T == the [LadybugRow] type.
-        sb.AppendLine($"        /// <summary>Materializes the result rows into <see cref=\"{model.TypeFullName.Replace("global::", string.Empty)}\"/> instances (reflection-free).</summary>");
-        sb.AppendLine($"        public static System.Collections.Generic.IReadOnlyList<{model.TypeFullName}> Map<T>(this global::LadybugDB.QueryResult result)");
-        sb.AppendLine($"            where T : {model.TypeFullName}");
+        sb.AppendLine("        /// <summary>Materializes the result rows into <typeparamref name=\"T\"/> instances (reflection-free, AOT-safe).</summary>");
+        sb.AppendLine("        public static System.Collections.Generic.IReadOnlyList<T> Map<T>(this global::LadybugDB.QueryResult result)");
         sb.AppendLine("        {");
         sb.AppendLine("            if (result is null) throw new System.ArgumentNullException(nameof(result));");
+        foreach (RowModel model in models)
+        {
+            sb.AppendLine($"            if (typeof(T) == typeof({model.TypeFullName})) return (System.Collections.Generic.IReadOnlyList<T>)(object){MapMethodName(model)}(result);");
+        }
+
+        sb.AppendLine("            throw new System.NotSupportedException(\"Type '\" + typeof(T).FullName + \"' is not a [LadybugRow] type in this compilation. Annotate it with [LadybugDB.LadybugRow].\");");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+    }
+
+    private static void EmitMapAsyncDispatcher(StringBuilder sb, ImmutableArray<RowModel> models)
+    {
+        sb.AppendLine("        /// <summary>Streams the result rows as <typeparamref name=\"T\"/> instances (reflection-free, AOT-safe).</summary>");
+        sb.AppendLine("        public static System.Collections.Generic.IAsyncEnumerable<T> MapAsync<T>(this global::LadybugDB.QueryResult result, System.Threading.CancellationToken ct = default)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (result is null) throw new System.ArgumentNullException(nameof(result));");
+        foreach (RowModel model in models)
+        {
+            sb.AppendLine($"            if (typeof(T) == typeof({model.TypeFullName})) return (System.Collections.Generic.IAsyncEnumerable<T>)(object){MapAsyncMethodName(model)}(result, ct);");
+        }
+
+        sb.AppendLine("            throw new System.NotSupportedException(\"Type '\" + typeof(T).FullName + \"' is not a [LadybugRow] type in this compilation. Annotate it with [LadybugDB.LadybugRow].\");");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+    }
+
+    private static void EmitTypeMappers(StringBuilder sb, RowModel model)
+    {
+        // Synchronous materializer.
+        sb.AppendLine($"        private static System.Collections.Generic.IReadOnlyList<{model.TypeFullName}> {MapMethodName(model)}(global::LadybugDB.QueryResult result)");
+        sb.AppendLine("        {");
         sb.AppendLine("            var __idx = BuildIndex(result.ColumnNames);");
         sb.AppendLine($"            var __list = new System.Collections.Generic.List<{model.TypeFullName}>();");
         sb.AppendLine("            foreach (var __row in result.Rows())");
@@ -51,12 +85,9 @@ internal static class Emitter
         sb.AppendLine("        }");
         sb.AppendLine();
 
-        // MapAsync<T>() — IAsyncEnumerable streaming materialization.
-        sb.AppendLine($"        /// <summary>Streams the result rows as <see cref=\"{model.TypeFullName.Replace("global::", string.Empty)}\"/> instances (reflection-free).</summary>");
-        sb.AppendLine($"        public static async System.Collections.Generic.IAsyncEnumerable<{model.TypeFullName}> MapAsync<T>(this global::LadybugDB.QueryResult result, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken ct = default)");
-        sb.AppendLine($"            where T : {model.TypeFullName}");
+        // Asynchronous (streaming) materializer.
+        sb.AppendLine($"        private static async System.Collections.Generic.IAsyncEnumerable<{model.TypeFullName}> {MapAsyncMethodName(model)}(global::LadybugDB.QueryResult result, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken ct)");
         sb.AppendLine("        {");
-        sb.AppendLine("            if (result is null) throw new System.ArgumentNullException(nameof(result));");
         sb.AppendLine("            var __idx = BuildIndex(result.ColumnNames);");
         sb.AppendLine("            foreach (var __row in result.Rows())");
         sb.AppendLine("            {");
@@ -103,5 +134,21 @@ internal static class Emitter
         // binding's CLR result type. NULL flows through as default for the target type.
         string cell = $"__row[__idx[\"{m.ColumnName}\"]]";
         return $"global::LadybugDB.LadybugRowConvert.To<{m.TypeFullName}>({cell})";
+    }
+
+    private static string MapMethodName(RowModel model) => "Map_" + Mangle(model);
+
+    private static string MapAsyncMethodName(RowModel model) => "MapAsync_" + Mangle(model);
+
+    private static string Mangle(RowModel model)
+    {
+        // Stable, unique, identifier-safe suffix from the fully-qualified type name.
+        var sb = new StringBuilder(model.TypeFullName.Length);
+        foreach (char c in model.TypeFullName)
+        {
+            sb.Append(char.IsLetterOrDigit(c) ? c : '_');
+        }
+
+        return sb.ToString();
     }
 }
