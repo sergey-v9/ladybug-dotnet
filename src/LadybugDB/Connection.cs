@@ -9,7 +9,7 @@ namespace LadybugDB;
 /// A connection to a <see cref="Database"/> used to execute Cypher queries and prepared statements.
 /// Operations on a single connection are serialized internally, and disposal is idempotent.
 /// </summary>
-public sealed class Connection : IDisposable
+public sealed partial class Connection : IDisposable
 {
     private readonly Database _database;
     private readonly object _gate = new();

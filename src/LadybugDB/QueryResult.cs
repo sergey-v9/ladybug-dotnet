@@ -8,7 +8,7 @@ namespace LadybugDB;
 /// <summary>
 /// The result of executing a Cypher query: column metadata plus a forward-only stream of rows.
 /// </summary>
-public sealed class QueryResult : IDisposable
+public sealed partial class QueryResult : IDisposable
 {
     private LbugQueryResult _handle;
     private int _disposed;
