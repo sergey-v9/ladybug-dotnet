@@ -52,6 +52,19 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_connection_get_max_num_thread_for_exec")]
     internal static partial LbugState ConnectionGetMaxNumThreadForExec(ref LbugConnection connection, out ulong outResult);
 
+    // ---- Arrow ingest (for WS-E) -----------------------------------------------------------------
+    [LibraryImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_table", StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial LbugState ConnectionCreateArrowTable(ref LbugConnection connection, string tableName, ref ArrowSchema schema, ref ArrowArray arrays, ulong numArrays, out LbugQueryResult outQueryResult);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_rel_table", StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial LbugState ConnectionCreateArrowRelTable(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, ref ArrowSchema schema, ref ArrowArray arrays, ulong numArrays, out LbugQueryResult outQueryResult);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_connection_create_arrow_rel_table_csr", StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial LbugState ConnectionCreateArrowRelTableCsr(ref LbugConnection connection, string tableName, string srcTableName, string dstTableName, ref ArrowSchema indicesSchema, ref ArrowArray indicesArrays, ulong numIndicesArrays, ref ArrowSchema indptrSchema, ref ArrowArray indptrArrays, ulong numIndptrArrays, string? dstColName, out LbugQueryResult outQueryResult);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_connection_drop_arrow_table", StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial LbugState ConnectionDropArrowTable(ref LbugConnection connection, string tableName, out LbugQueryResult outQueryResult);
+
     // ---- PreparedStatement -----------------------------------------------------------------------
     [LibraryImport(LibraryName, EntryPoint = "lbug_prepared_statement_destroy")]
     internal static partial void PreparedStatementDestroy(ref LbugPreparedStatement preparedStatement);

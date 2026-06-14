@@ -204,6 +204,10 @@ public sealed class InteropDeclarationParity
             "lbug_value_clone",
             "lbug_value_copy",
             "lbug_value_get_struct_field_index",
+            "lbug_connection_create_arrow_table",
+            "lbug_connection_create_arrow_rel_table",
+            "lbug_connection_create_arrow_rel_table_csr",
+            "lbug_connection_drop_arrow_table",
         };
 
         foreach (string ep in required)
