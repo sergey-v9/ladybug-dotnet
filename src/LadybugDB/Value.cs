@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using LadybugDB.Interop;
 
 namespace LadybugDB;
@@ -15,7 +16,7 @@ public sealed class Value : IDisposable
     private static readonly DateTime UnixEpochUtc = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     private LbugValue _handle;
-    private bool _disposed;
+    private int _disposed;
 
     internal Value(LbugValue handle)
     {
@@ -169,7 +170,7 @@ public sealed class Value : IDisposable
     /// <inheritdoc />
     public override string? ToString()
     {
-        if (_disposed)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             return null;
         }
@@ -180,12 +181,13 @@ public sealed class Value : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
+        // Atomic, idempotent, thread-safe disposal matching FlatTuple/QueryResult (design §7): the
+        // exchange guarantees exactly one thread runs the native destroy even under a concurrent
+        // double-dispose, so the handle is never freed twice.
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
-
-        _disposed = true;
 
         // Values returned from a flat tuple are owned by the engine (IsOwnedByCpp != 0), in which
         // case the native destroy is a no-op; values we construct will actually be freed here.
@@ -501,7 +503,7 @@ public sealed class Value : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (_disposed)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             throw new ObjectDisposedException(nameof(Value));
         }
