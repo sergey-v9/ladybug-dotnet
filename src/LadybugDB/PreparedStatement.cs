@@ -255,7 +255,14 @@ public sealed class PreparedStatement : IDisposable
             decimal v => CreateDecimalValue(ToLadybugDecimal(v)),
             LadybugDecimal v => CreateDecimalValue(v),
             BigInteger v => CreateInt128Value(v),
-            byte[] v => Native.ValueCreateString(ToBlobLiteral(v)), // BLOB literal; caller CASTs to BLOB
+            // PORT-1: a nested byte[] (inside LIST/STRUCT/MAP) cannot be bound. The engine C API has no
+            // BLOB value constructor, so BLOB is only bindable as a TOP-LEVEL parameter the query
+            // explicitly CASTs to BLOB (see the Bind(string, byte[]) overload). Silently binding a nested
+            // byte[] as a string literal would round-trip as STRING, not BLOB, so fail loudly instead.
+            byte[] => throw new NotSupportedException(
+                "BLOB is only supported as a top-level parameter that the query explicitly CASTs to BLOB; " +
+                "a byte[] nested inside a LIST/STRUCT/MAP cannot be bound (the engine C API has no BLOB " +
+                "value constructor)."),
             IReadOnlyDictionary<string, object?> v => CreateStructValue(v),
             IEnumerable<KeyValuePair<object, object?>> v => CreateMapValue(v),
             IEnumerable v => CreateNativeList(v),

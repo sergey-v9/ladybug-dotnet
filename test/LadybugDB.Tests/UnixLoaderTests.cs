@@ -63,4 +63,25 @@ public sealed class UnixLoaderTests
         Assert.True((UnixNativeMethods.GlobalLoadFlags & UnixNativeMethods.RtldNow) == UnixNativeMethods.RtldNow);
         Assert.True((UnixNativeMethods.GlobalLoadFlags & UnixNativeMethods.RtldGlobal) == UnixNativeMethods.RtldGlobal);
     }
+
+    [Fact]
+    public void ToNullTerminatedUtf8_EncodesExactBytesWithTerminator()
+    {
+        // NAT-5: the dlopen path must be exact UTF-8 (not a lossy ANSI narrow) so a bundled path under
+        // a base directory with non-ASCII characters is not mangled.
+        Assert.Null(UnixNativeMethods.ToNullTerminatedUtf8(null));
+
+        byte[] ascii = UnixNativeMethods.ToNullTerminatedUtf8("liblbug.so")!;
+        Assert.Equal(
+            new byte[] { 0x6c, 0x69, 0x62, 0x6c, 0x62, 0x75, 0x67, 0x2e, 0x73, 0x6f, 0x00 },
+            ascii);
+
+        // "café/x": é is two UTF-8 bytes (0xC3 0xA9), proving no lossy narrowing, plus a NUL terminator.
+        byte[] nonAscii = UnixNativeMethods.ToNullTerminatedUtf8("café/x")!;
+        byte[] expected = System.Text.Encoding.UTF8.GetBytes("café/x");
+        Assert.Equal(expected.Length + 1, nonAscii.Length);
+        Assert.Equal((byte)0, nonAscii[nonAscii.Length - 1]);
+        Assert.Contains((byte)0xC3, nonAscii);
+        Assert.Contains((byte)0xA9, nonAscii);
+    }
 }

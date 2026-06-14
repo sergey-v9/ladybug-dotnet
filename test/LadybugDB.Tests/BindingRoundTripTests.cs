@@ -107,6 +107,29 @@ public sealed class BindingRoundTripTests
     }
 
     [SkippableFact]
+    public void Bind_nested_byte_array_throws_NotSupported()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            using PreparedStatement stmt = conn.Prepare("RETURN $p AS p");
+            var nested = new System.Collections.Generic.List<byte[]> { new byte[] { 0x01, 0x02 } };
+            // PORT-1: a byte[] nested in a LIST/STRUCT/MAP cannot be bound (the engine has no native BLOB
+            // value constructor), so it must fail loudly rather than silently bind as a string literal.
+            Assert.Throws<System.NotSupportedException>(() => stmt.Bind("p", nested));
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
     public void Bind_dictionary_round_trips_as_struct()
     {
         Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");

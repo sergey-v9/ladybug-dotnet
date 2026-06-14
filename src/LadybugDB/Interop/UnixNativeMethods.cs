@@ -37,11 +37,36 @@ internal static class UnixNativeMethods
     // tried because on musl (Alpine) and macOS dl* live in libc/libSystem and a bare "dl" resolves
     // there. Both DllImports are declared with the same EntryPoint so a single managed name maps to
     // whichever shared object provides dlopen on the host.
-    [DllImport("libdl.so.2", EntryPoint = "dlopen", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    private static extern IntPtr DlOpenGlibc([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
+    //
+    // NAT-5: the path is passed as a NUL-terminated UTF-8 byte[] rather than CharSet.Ansi/LPStr. dlopen
+    // treats the path as raw bytes, but the LPStr/ANSI marshaller does a lossy narrow conversion on
+    // Unix, so a bundled path under a base directory containing non-ASCII characters would be mangled
+    // and the library would not be found. Encoding to UTF-8 ourselves makes the byte path exact and is
+    // identical on net10.0 and netstandard2.0.
+    [DllImport("libdl.so.2", EntryPoint = "dlopen", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr DlOpenGlibc(byte[] fileName, int flags);
 
-    [DllImport("libdl", EntryPoint = "dlopen", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    private static extern IntPtr DlOpenLegacy([MarshalAs(UnmanagedType.LPStr)] string fileName, int flags);
+    [DllImport("libdl", EntryPoint = "dlopen", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr DlOpenLegacy(byte[] fileName, int flags);
+
+    /// <summary>
+    /// Encodes <paramref name="path"/> to a NUL-terminated UTF-8 byte buffer for <c>dlopen</c>. Returns
+    /// <see langword="null"/> for a <see langword="null"/> input. The trailing <c>0</c> terminates the
+    /// C string; the encoding is locale-independent so non-ASCII paths survive intact.
+    /// </summary>
+    internal static byte[]? ToNullTerminatedUtf8(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(path);
+        var buffer = new byte[bytes.Length + 1];
+        Array.Copy(bytes, buffer, bytes.Length);
+        buffer[bytes.Length] = 0;
+        return buffer;
+    }
 
     /// <summary>
     /// Attempts to <c>dlopen(fileName, RTLD_NOW | RTLD_GLOBAL)</c>. Returns <see langword="false"/> on
@@ -57,10 +82,11 @@ internal static class UnixNativeMethods
             return false;
         }
 
+        byte[] path = ToNullTerminatedUtf8(fileName)!;
         int flags = GlobalLoadFlags;
         try
         {
-            handle = DlOpenGlibc(fileName, flags);
+            handle = DlOpenGlibc(path, flags);
         }
         catch (DllNotFoundException)
         {
@@ -75,7 +101,7 @@ internal static class UnixNativeMethods
         {
             try
             {
-                handle = DlOpenLegacy(fileName, flags);
+                handle = DlOpenLegacy(path, flags);
             }
             catch (DllNotFoundException)
             {
