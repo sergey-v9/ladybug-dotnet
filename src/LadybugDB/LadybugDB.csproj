@@ -23,6 +23,13 @@
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <!-- IAsyncEnumerable<T> + [EnumeratorCancellation] for the WS-D async surface on ns2.0; these
+         types are in-box on net10.0. Version aligned with WS-K's central pin
+         (docs/parity-2026-06/K-ns20-feasibility.md). -->
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
+  </ItemGroup>
+
   <!-- The POCO source generator runs during this package's own compile AND ships inside this
        package as an analyzer asset (design 5.3). ReferenceOutputAssembly=false keeps the
        analyzer DLL out of the managed reference closure. -->
