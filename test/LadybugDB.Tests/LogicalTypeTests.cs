@@ -21,4 +21,26 @@ public sealed class LogicalTypeTests
         Assert.Equal(a.GetHashCode(), b.GetHashCode());
         Assert.NotEqual(a, new QuerySummary(1.5, 9.9));
     }
+
+    [Fact]
+    public void LogicalType_ToString_RendersScalarsNestedAndArrays()
+    {
+        var int64 = LogicalType.CreateForTests(DataTypeId.Int64, child: null, fixedArraySize: null);
+        Assert.Equal("INT64", int64.ToString());
+
+        var listOfString = LogicalType.CreateForTests(
+            DataTypeId.List,
+            child: LogicalType.CreateForTests(DataTypeId.String, null, null),
+            fixedArraySize: null);
+        Assert.Equal("LIST(STRING)", listOfString.ToString());
+
+        var arrayOfDouble = LogicalType.CreateForTests(
+            DataTypeId.Array,
+            child: LogicalType.CreateForTests(DataTypeId.Double, null, null),
+            fixedArraySize: 3);
+        Assert.Equal("ARRAY(DOUBLE, 3)", arrayOfDouble.ToString());
+        Assert.Equal(DataTypeId.Array, arrayOfDouble.Id);
+        Assert.Equal(3UL, arrayOfDouble.FixedArraySize);
+        Assert.Equal(DataTypeId.Double, arrayOfDouble.ChildType!.Id);
+    }
 }
