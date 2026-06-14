@@ -13,6 +13,8 @@ public sealed partial class QueryResult : IDisposable
     private LbugQueryResult _handle;
     private int _disposed;
     private string[]? _columnNames;
+    private QuerySummary? _summary;
+    private ColumnSchema[]? _columns;
 
     internal QueryResult(LbugQueryResult handle)
     {
@@ -50,6 +52,38 @@ public sealed partial class QueryResult : IDisposable
         {
             ThrowIfDisposed();
             return Native.QueryResultGetNumTuples(ref _handle);
+        }
+    }
+
+    /// <summary>Compilation and execution timings for this query, read lazily and cached.</summary>
+    public QuerySummary Summary
+    {
+        get
+        {
+            ThrowIfDisposed();
+            if (_summary is QuerySummary cached)
+            {
+                return cached;
+            }
+
+            LbugState state = Native.QueryResultGetQuerySummary(ref _handle, out LbugQuerySummary native);
+            if (state != LbugState.Success)
+            {
+                throw new LadybugException("Failed to read the query summary.");
+            }
+
+            try
+            {
+                var summary = new QuerySummary(
+                    Native.QuerySummaryGetCompilingTime(ref native),
+                    Native.QuerySummaryGetExecutionTime(ref native));
+                _summary = summary;
+                return summary;
+            }
+            finally
+            {
+                Native.QuerySummaryDestroy(ref native);
+            }
         }
     }
 
