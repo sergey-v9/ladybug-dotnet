@@ -39,4 +39,37 @@ public sealed class DiagnosticsTests
         Assert.Contains("db.query.errors", instruments);
         Assert.Contains("db.query.duration.ms", instruments);
     }
+
+    private static ActivityListener RecordingListener(List<Activity> sink)
+    {
+        var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "LadybugDB",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = sink.Add,
+        };
+        ActivitySource.AddActivityListener(listener);
+        return listener;
+    }
+
+    [Fact]
+    public void StartQuery_starts_an_activity_with_expected_tags()
+    {
+        var stopped = new List<Activity>();
+        using ActivityListener listener = RecordingListener(stopped);
+
+        using (QueryScope scope = LadybugInstrumentation.StartQuery("MATCH (n) RETURN n"))
+        {
+            scope.SetSuccess();
+        }
+
+        Activity activity = Assert.Single(stopped);
+        Assert.Equal("LadybugDB.Query", activity.OperationName);
+        Assert.Equal(ActivityKind.Client, activity.Kind);
+        Assert.Equal(ActivityStatusCode.Ok, activity.Status);
+        Assert.Equal("cypher", activity.GetTagItem("db.system"));
+        // The full query text must NOT be a tag (PII / cardinality); only its length.
+        Assert.Null(activity.GetTagItem("db.statement"));
+        Assert.Equal(18, activity.GetTagItem("db.query.length"));
+    }
 }
