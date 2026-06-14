@@ -43,4 +43,20 @@ public sealed class LogicalTypeTests
         Assert.Equal(3UL, arrayOfDouble.FixedArraySize);
         Assert.Equal(DataTypeId.Double, arrayOfDouble.ChildType!.Id);
     }
+
+    [Fact]
+    public void ColumnSchema_HasValueEquality_OverNameAndType()
+    {
+        var t1 = LogicalType.CreateForTests(DataTypeId.Int64, null, null);
+        var t2 = LogicalType.CreateForTests(DataTypeId.Int64, null, null);
+
+        var a = new ColumnSchema("age", t1);
+        var b = new ColumnSchema("age", t1);
+
+        Assert.Equal("age", a.Name);
+        Assert.Same(t1, a.Type);
+        Assert.Equal(a, b);                       // same Name + same LogicalType reference
+        Assert.NotEqual(a, new ColumnSchema("name", t1));
+        Assert.NotEqual(a, new ColumnSchema("age", t2)); // different LogicalType reference
+    }
 }
