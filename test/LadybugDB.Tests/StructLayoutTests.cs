@@ -187,6 +187,10 @@ public sealed class InteropDeclarationParity
             "lbug_query_result_get_next_query_result",
             "lbug_query_result_get_arrow_schema",
             "lbug_query_result_get_next_arrow_chunk",
+            "lbug_data_type_clone",
+            "lbug_data_type_equals",
+            "lbug_data_type_get_child_type",
+            "lbug_data_type_get_num_elements_in_array",
         };
 
         foreach (string ep in required)

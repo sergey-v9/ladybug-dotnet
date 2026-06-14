@@ -283,6 +283,19 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_data_type_destroy", CallingConvention = Conv)]
     internal static extern void DataTypeDestroy(ref LbugLogicalType dataType);
 
+    [DllImport(LibraryName, EntryPoint = "lbug_data_type_clone", CallingConvention = Conv)]
+    internal static extern void DataTypeClone(ref LbugLogicalType dataType, out LbugLogicalType outType);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_data_type_equals", CallingConvention = Conv)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static extern bool DataTypeEquals(ref LbugLogicalType dataType1, ref LbugLogicalType dataType2);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_data_type_get_child_type", CallingConvention = Conv)]
+    internal static extern LbugState DataTypeGetChildType(ref LbugLogicalType dataType, out LbugLogicalType outResult);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_data_type_get_num_elements_in_array", CallingConvention = Conv)]
+    internal static extern LbugState DataTypeGetNumElementsInArray(ref LbugLogicalType dataType, out ulong outResult);
+
     // ---- Value -----------------------------------------------------------------------------------
     [DllImport(LibraryName, EntryPoint = "lbug_value_destroy", CallingConvention = Conv)]
     internal static extern void ValueDestroy(ref LbugValue value);

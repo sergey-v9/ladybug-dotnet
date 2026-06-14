@@ -212,6 +212,19 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_data_type_destroy")]
     internal static partial void DataTypeDestroy(ref LbugLogicalType dataType);
 
+    [LibraryImport(LibraryName, EntryPoint = "lbug_data_type_clone")]
+    internal static partial void DataTypeClone(ref LbugLogicalType dataType, out LbugLogicalType outType);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_data_type_equals")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static partial bool DataTypeEquals(ref LbugLogicalType dataType1, ref LbugLogicalType dataType2);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_data_type_get_child_type")]
+    internal static partial LbugState DataTypeGetChildType(ref LbugLogicalType dataType, out LbugLogicalType outResult);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_data_type_get_num_elements_in_array")]
+    internal static partial LbugState DataTypeGetNumElementsInArray(ref LbugLogicalType dataType, out ulong outResult);
+
     // ---- Value -----------------------------------------------------------------------------------
     [LibraryImport(LibraryName, EntryPoint = "lbug_value_destroy")]
     internal static partial void ValueDestroy(ref LbugValue value);
