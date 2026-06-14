@@ -191,4 +191,39 @@ public sealed class DiagnosticsTests
 
         Assert.Null(Activity.Current);
     }
+
+    [SkippableFact]
+    public void Real_query_emits_an_activity_and_increments_count()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        var stopped = new List<Activity>();
+        var longSums = new Dictionary<string, long>();
+        var durations = new List<double>();
+        using ActivityListener activityListener = RecordingListener(stopped);
+        using MeterListener meterListener = CountingListener(longSums, durations);
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            conn.Query("CREATE NODE TABLE T(id INT64, PRIMARY KEY(id))").Dispose();
+            conn.Query("CREATE (:T {id: 1})").Dispose();
+            using QueryResult result = conn.Query("MATCH (t:T) RETURN t.id");
+            Assert.True(result.IsSuccess);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+
+        // At least the three queries above produced activities + count measurements (WS-B wiring).
+        Assert.NotEmpty(stopped);
+        Assert.True(
+            longSums.TryGetValue("db.query.count", out long count) && count >= 3,
+            "db.query.count not incremented by Connection.Query");
+        Assert.Contains(stopped, a => a.OperationName == "LadybugDB.Query");
+    }
 }
