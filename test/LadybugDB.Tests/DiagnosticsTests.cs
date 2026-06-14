@@ -72,4 +72,107 @@ public sealed class DiagnosticsTests
         Assert.Null(activity.GetTagItem("db.statement"));
         Assert.Equal(18, activity.GetTagItem("db.query.length"));
     }
+
+    private static MeterListener CountingListener(
+        Dictionary<string, long> longSums,
+        List<double> durations)
+    {
+        var listener = new MeterListener
+        {
+            InstrumentPublished = (instrument, l) =>
+            {
+                if (instrument.Meter.Name == "LadybugDB")
+                {
+                    l.EnableMeasurementEvents(instrument);
+                }
+            },
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
+        {
+            lock (longSums)
+            {
+                longSums.TryGetValue(instrument.Name, out long current);
+                longSums[instrument.Name] = current + measurement;
+            }
+        });
+        listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
+        {
+            if (instrument.Name == "db.query.duration.ms")
+            {
+                lock (durations)
+                {
+                    durations.Add(measurement);
+                }
+            }
+        });
+        listener.Start();
+        return listener;
+    }
+
+    [Fact]
+    public void Scope_records_count_and_duration_each_execution()
+    {
+        var longSums = new Dictionary<string, long>();
+        var durations = new List<double>();
+        using MeterListener listener = CountingListener(longSums, durations);
+
+        using (QueryScope scope = LadybugInstrumentation.StartQuery("RETURN 1"))
+        {
+            scope.SetSuccess();
+        }
+
+        using (QueryScope scope = LadybugInstrumentation.StartQuery("RETURN 2"))
+        {
+            scope.SetSuccess();
+        }
+
+        listener.RecordObservableInstruments();
+
+        Assert.Equal(2L, longSums["db.query.count"]);
+        Assert.False(longSums.ContainsKey("db.query.errors")); // no errors recorded => no measurement
+        Assert.Equal(2, durations.Count);
+        Assert.All(durations, d => Assert.True(d >= 0.0));
+    }
+
+    [Fact]
+    public void Error_increments_error_counter_and_sets_error_status()
+    {
+        var longSums = new Dictionary<string, long>();
+        var durations = new List<double>();
+        var stopped = new List<Activity>();
+        using ActivityListener activityListener = RecordingListener(stopped);
+        using MeterListener meterListener = CountingListener(longSums, durations);
+
+        using (QueryScope scope = LadybugInstrumentation.StartQuery("MATCH (x:Nope) RETURN x"))
+        {
+            scope.SetError(new InvalidOperationException("Table Nope does not exist"));
+        }
+
+        Assert.Equal(1L, longSums["db.query.count"]);
+        Assert.Equal(1L, longSums["db.query.errors"]);
+        Activity activity = Assert.Single(stopped);
+        Assert.Equal(ActivityStatusCode.Error, activity.Status);
+        Assert.Equal("Table Nope does not exist", activity.StatusDescription);
+    }
+
+    [Fact]
+    public void Cancellation_is_counted_as_an_error()
+    {
+        var longSums = new Dictionary<string, long>();
+        var durations = new List<double>();
+        var stopped = new List<Activity>();
+        using ActivityListener activityListener = RecordingListener(stopped);
+        using MeterListener meterListener = CountingListener(longSums, durations);
+
+        using (QueryScope scope = LadybugInstrumentation.StartQuery("MATCH (n) RETURN n"))
+        {
+            scope.SetCancelled();
+        }
+
+        Assert.Equal(1L, longSums["db.query.count"]);
+        Assert.Equal(1L, longSums["db.query.errors"]);
+        Activity activity = Assert.Single(stopped);
+        Assert.Equal(ActivityStatusCode.Error, activity.Status);
+        Assert.Equal("cancelled", activity.StatusDescription);
+    }
 }
