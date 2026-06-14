@@ -304,6 +304,27 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_timestamp_sec")]
     internal static partial IntPtr ValueCreateTimestampSec(LbugTimestamp value);
 
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_null_with_data_type")]
+    internal static partial IntPtr ValueCreateNullWithDataType(ref LbugLogicalType dataType);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_set_null")]
+    internal static partial void ValueSetNull(ref LbugValue value, [MarshalAs(UnmanagedType.U1)] bool isNull);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_struct")]
+    internal static partial LbugState ValueCreateStruct(ulong numFields, [In] IntPtr[] fieldNames, [In] IntPtr[] fieldValues, out IntPtr outValue);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_map")]
+    internal static partial LbugState ValueCreateMap(ulong numFields, [In] IntPtr[] keys, [In] IntPtr[] values, out IntPtr outValue);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_clone")]
+    internal static partial IntPtr ValueClone(ref LbugValue value);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_copy")]
+    internal static partial void ValueCopy(ref LbugValue value, ref LbugValue other);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_value_get_struct_field_index", StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial LbugState ValueGetStructFieldIndex(ref LbugValue value, string fieldName, out ulong outResult);
+
     [LibraryImport(LibraryName, EntryPoint = "lbug_value_create_list")]
     internal static partial LbugState ValueCreateList(ulong numElements, [In] IntPtr[] elements, out IntPtr outValue);
 

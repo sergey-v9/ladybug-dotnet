@@ -381,6 +381,30 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_value_create_timestamp_sec", CallingConvention = Conv)]
     internal static extern IntPtr ValueCreateTimestampSec(LbugTimestamp value);
 
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_null_with_data_type", CallingConvention = Conv)]
+    internal static extern IntPtr ValueCreateNullWithDataType(ref LbugLogicalType dataType);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_set_null", CallingConvention = Conv)]
+    internal static extern void ValueSetNull(ref LbugValue value, [MarshalAs(UnmanagedType.U1)] bool isNull);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_struct", CallingConvention = Conv)]
+    internal static extern LbugState ValueCreateStruct(ulong numFields, [In] IntPtr[] fieldNames, [In] IntPtr[] fieldValues, out IntPtr outValue);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_create_map", CallingConvention = Conv)]
+    internal static extern LbugState ValueCreateMap(ulong numFields, [In] IntPtr[] keys, [In] IntPtr[] values, out IntPtr outValue);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_clone", CallingConvention = Conv)]
+    internal static extern IntPtr ValueClone(ref LbugValue value);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_copy", CallingConvention = Conv)]
+    internal static extern void ValueCopy(ref LbugValue value, ref LbugValue other);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_value_get_struct_field_index", CallingConvention = Conv)]
+    private static extern LbugState ValueGetStructFieldIndexRaw(ref LbugValue value, byte[] fieldName, out ulong outResult);
+
+    internal static LbugState ValueGetStructFieldIndex(ref LbugValue value, string fieldName, out ulong outResult)
+        => ValueGetStructFieldIndexRaw(ref value, ToUtf8(fieldName), out outResult);
+
     [DllImport(LibraryName, EntryPoint = "lbug_value_create_list", CallingConvention = Conv)]
     internal static extern LbugState ValueCreateList(ulong numElements, [In] IntPtr[] elements, out IntPtr outValue);
 

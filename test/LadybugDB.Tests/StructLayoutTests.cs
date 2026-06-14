@@ -197,6 +197,13 @@ public sealed class InteropDeclarationParity
             "lbug_value_create_timestamp_ns",
             "lbug_value_create_timestamp_ms",
             "lbug_value_create_timestamp_sec",
+            "lbug_value_create_null_with_data_type",
+            "lbug_value_set_null",
+            "lbug_value_create_struct",
+            "lbug_value_create_map",
+            "lbug_value_clone",
+            "lbug_value_copy",
+            "lbug_value_get_struct_field_index",
         };
 
         foreach (string ep in required)
