@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using LadybugDB.Interop;
 
 namespace LadybugDB;
@@ -11,7 +12,7 @@ namespace LadybugDB;
 public sealed class FlatTuple : IDisposable
 {
     private LbugFlatTuple _handle;
-    private bool _disposed;
+    private int _disposed;
 
     internal FlatTuple(LbugFlatTuple handle)
     {
@@ -45,7 +46,7 @@ public sealed class FlatTuple : IDisposable
     /// <inheritdoc />
     public override string? ToString()
     {
-        if (_disposed)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             return null;
         }
@@ -56,18 +57,17 @@ public sealed class FlatTuple : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
         Native.FlatTupleDestroy(ref _handle);
     }
 
     private void ThrowIfDisposed()
     {
-        if (_disposed)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             throw new ObjectDisposedException(nameof(FlatTuple));
         }

@@ -201,4 +201,31 @@ public sealed class ResultSurfaceTests
             TestEnvironment.TryDelete(dbPath);
         }
     }
+
+    [SkippableFact]
+    public void FlatTuple_DoubleDispose_IsSafe()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            (Database db, Connection conn) = NewGraph(dbPath);
+            using (db)
+            using (conn)
+            {
+                using QueryResult result = conn.Query("MATCH (p:Person) RETURN p.name");
+                Assert.True(result.HasNext());
+                FlatTuple tuple = result.GetNext();
+
+                tuple.Dispose();
+                tuple.Dispose(); // must be a no-op, never a double native destroy
+                Assert.Throws<System.ObjectDisposedException>(() => tuple.GetValue(0));
+            }
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
 }
