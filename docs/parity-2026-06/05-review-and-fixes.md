@@ -1,5 +1,12 @@
 # Adversarial Review — Findings & Fix Plan (2026-06-14)
 
+> **STATUS: all 13 confirmed findings FIXED and verified (255/255 tests green).**
+> Commits: FIX-MAP `c0b0bfb`+`57be6fa` (SG-1/AOT-1/SG-2/MAP-1/SG-3); FIX-CONC `e256f7a`/`7e87106`/`c3bed23`/`ef8da57`
+> (CONC-1/CONC-2/CONC-3/CONC-5/MAP-2/UNION-1); FIX-ARROW `8dc2a4c` (ARROW-1); FIX-MISC `b761f9b` (PORT-1/NAT-5).
+> FIX-ARROW and FIX-MISC were finished by the orchestrator after the authoring agents hit the session
+> usage limit mid-run — FIX-ARROW's work was complete-but-uncommitted (recovered & committed); FIX-MISC
+> was redone inline.
+
 5-lens adversarial review of `main..HEAD` (~8,400 LOC). Each finding was verified by an
 independent skeptic prompted to refute it. **23 raised → 13 confirmed real, 2 uncertain
 (near-unreachable), 8 false-positives.** Verifiers also corrected several over-claims (the
