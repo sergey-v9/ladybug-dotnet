@@ -15,6 +15,7 @@ on:
     paths:
       - 'src/**'
       - 'test/**'
+      - 'benchmarks/**'
       - 'cake/**'
       - 'nuget/**'
       - '**/*.props'
@@ -26,6 +27,7 @@ on:
     paths:
       - 'src/**'
       - 'test/**'
+      - 'benchmarks/**'
       - 'cake/**'
       - 'nuget/**'
       - '**/*.props'
