@@ -218,6 +218,9 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_query_result_get_num_tuples", CallingConvention = Conv)]
     internal static extern ulong QueryResultGetNumTuples(ref LbugQueryResult queryResult);
 
+    [DllImport(LibraryName, EntryPoint = "lbug_query_result_get_query_summary", CallingConvention = Conv)]
+    internal static extern LbugState QueryResultGetQuerySummary(ref LbugQueryResult queryResult, out LbugQuerySummary outQuerySummary);
+
     [DllImport(LibraryName, EntryPoint = "lbug_query_result_has_next", CallingConvention = Conv)]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool QueryResultHasNext(ref LbugQueryResult queryResult);
@@ -237,6 +240,16 @@ internal static partial class Native
 
     [DllImport(LibraryName, EntryPoint = "lbug_flat_tuple_to_string", CallingConvention = Conv)]
     internal static extern IntPtr FlatTupleToString(ref LbugFlatTuple flatTuple);
+
+    // ---- QuerySummary ----------------------------------------------------------------------------
+    [DllImport(LibraryName, EntryPoint = "lbug_query_summary_destroy", CallingConvention = Conv)]
+    internal static extern void QuerySummaryDestroy(ref LbugQuerySummary querySummary);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_query_summary_get_compiling_time", CallingConvention = Conv)]
+    internal static extern double QuerySummaryGetCompilingTime(ref LbugQuerySummary querySummary);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_query_summary_get_execution_time", CallingConvention = Conv)]
+    internal static extern double QuerySummaryGetExecutionTime(ref LbugQuerySummary querySummary);
 
     // ---- DataType --------------------------------------------------------------------------------
     [DllImport(LibraryName, EntryPoint = "lbug_data_type_get_id", CallingConvention = Conv)]

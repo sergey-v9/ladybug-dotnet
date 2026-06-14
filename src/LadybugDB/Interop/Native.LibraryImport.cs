@@ -147,6 +147,9 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_get_num_tuples")]
     internal static partial ulong QueryResultGetNumTuples(ref LbugQueryResult queryResult);
 
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_get_query_summary")]
+    internal static partial LbugState QueryResultGetQuerySummary(ref LbugQueryResult queryResult, out LbugQuerySummary outQuerySummary);
+
     [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_has_next")]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static partial bool QueryResultHasNext(ref LbugQueryResult queryResult);
@@ -166,6 +169,16 @@ internal static partial class Native
 
     [LibraryImport(LibraryName, EntryPoint = "lbug_flat_tuple_to_string")]
     internal static partial IntPtr FlatTupleToString(ref LbugFlatTuple flatTuple);
+
+    // ---- QuerySummary ----------------------------------------------------------------------------
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_summary_destroy")]
+    internal static partial void QuerySummaryDestroy(ref LbugQuerySummary querySummary);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_summary_get_compiling_time")]
+    internal static partial double QuerySummaryGetCompilingTime(ref LbugQuerySummary querySummary);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_summary_get_execution_time")]
+    internal static partial double QuerySummaryGetExecutionTime(ref LbugQuerySummary querySummary);
 
     // ---- DataType --------------------------------------------------------------------------------
     [LibraryImport(LibraryName, EntryPoint = "lbug_data_type_get_id")]

@@ -177,6 +177,10 @@ public sealed class InteropDeclarationParity
             "lbug_connection_set_query_timeout",
             "lbug_connection_set_max_num_thread_for_exec",
             "lbug_connection_get_max_num_thread_for_exec",
+            "lbug_query_result_get_query_summary",
+            "lbug_query_summary_get_compiling_time",
+            "lbug_query_summary_get_execution_time",
+            "lbug_query_summary_destroy",
         };
 
         foreach (string ep in required)
