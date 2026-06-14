@@ -165,3 +165,38 @@ internal struct LbugInterval
     public int Days;
     public long Micros;
 }
+
+/// <summary>
+/// Mirror of the Arrow C-Data-Interface <c>ArrowSchema</c> (lbug.h:64-78). Function-pointer and
+/// opaque fields are modeled as <see cref="IntPtr"/> so the struct stays blittable. WS-E owns the
+/// managed Arrow layer; this is the raw export/ingest seam only.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ArrowSchema
+{
+    public IntPtr Format;       // const char*
+    public IntPtr Name;         // const char*
+    public IntPtr Metadata;     // const char*
+    public long Flags;          // int64_t
+    public long NChildren;      // int64_t
+    public IntPtr Children;     // ArrowSchema**
+    public IntPtr Dictionary;   // ArrowSchema*
+    public IntPtr Release;      // void (*)(ArrowSchema*)
+    public IntPtr PrivateData;  // void*
+}
+
+/// <summary>Mirror of the Arrow C-Data-Interface <c>ArrowArray</c> (lbug.h:80-95).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ArrowArray
+{
+    public long Length;         // int64_t
+    public long NullCount;      // int64_t
+    public long Offset;         // int64_t
+    public long NBuffers;       // int64_t
+    public long NChildren;      // int64_t
+    public IntPtr Buffers;      // const void**
+    public IntPtr Children;     // ArrowArray**
+    public IntPtr Dictionary;   // ArrowArray*
+    public IntPtr Release;      // void (*)(ArrowArray*)
+    public IntPtr PrivateData;  // void*
+}

@@ -96,4 +96,24 @@ public sealed class StructLayoutTests
 
         static int Offset(string field) => (int)Marshal.OffsetOf<LbugSystemConfig>(field);
     }
+
+    // Arrow C-Data-Interface structs (lbug.h:64-95). Sizes are pointer-width dependent;
+    // assert the field count works out on 64-bit (the only supported architectures).
+    [Fact]
+    public void ArrowSchema_MatchesCDataInterfaceLayout()
+    {
+        // 3 char* + 2 int64 + 2 struct** + release fn-ptr + private_data = 7 ptr + 2 int64.
+        Assert.Equal(IntPtr.Size * 7 + 8 * 2, Marshal.SizeOf<ArrowSchema>());
+        Assert.Equal(0, (int)Marshal.OffsetOf<ArrowSchema>(nameof(ArrowSchema.Format)));
+        Assert.Equal(IntPtr.Size, (int)Marshal.OffsetOf<ArrowSchema>(nameof(ArrowSchema.Name)));
+    }
+
+    [Fact]
+    public void ArrowArray_MatchesCDataInterfaceLayout()
+    {
+        // 5 int64 + buffers + children + dictionary + release + private_data = 5 int64 + 5 ptr.
+        Assert.Equal(8 * 5 + IntPtr.Size * 5, Marshal.SizeOf<ArrowArray>());
+        Assert.Equal(0, (int)Marshal.OffsetOf<ArrowArray>(nameof(ArrowArray.Length)));
+        Assert.Equal(8, (int)Marshal.OffsetOf<ArrowArray>(nameof(ArrowArray.NullCount)));
+    }
 }
