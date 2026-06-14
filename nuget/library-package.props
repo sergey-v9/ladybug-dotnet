@@ -1,0 +1,28 @@
+<Project>
+
+  <!-- Shared NuGet metadata for the LadybugDB satellite library packages
+       (LadybugDB.Extensions, LadybugDB.Arrow). Each importer sets its own
+       PackageId/Title/Description; common fields and versioning live here. -->
+  <PropertyGroup>
+    <!-- Single source of truth: version.txt at the binding root (e.g. 0.17.1.0). The cake/
+         pipeline also reads this file; this default only applies to a direct `dotnet pack`. -->
+    <Version Condition="'$(Version)' == ''">$([System.IO.File]::ReadAllText('$(CSharpDir)version.txt').Trim())</Version>
+    <Authors>LadybugDB</Authors>
+    <Company>LadybugDB</Company>
+    <Product>Ladybug</Product>
+    <Copyright>Copyright (c) LadybugDB</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ladybugdb/ladybug</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/LadybugDB/ladybug-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(CSharpDir)README.md" Pack="true" PackagePath="\" Condition="Exists('$(CSharpDir)README.md')" />
+  </ItemGroup>
+
+</Project>
