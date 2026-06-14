@@ -64,6 +64,57 @@ public sealed class DisposalSafetyTests
         }
     }
 
+    // CONC-2: after Dispose, Interrupt() must be a safe no-op (it must NOT touch the freed handle and
+    // must NOT throw) — Interrupt is intentionally gate-free, so a disposal that runs concurrently with
+    // an in-flight interrupt cannot be guarded by the query gate; the handle lifetime lock + _disposed
+    // check is what keeps it safe. Before the fix Interrupt() threw ObjectDisposedException here.
+    [SkippableFact]
+    public void Interrupt_AfterDispose_IsSafeNoOp()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        using var db = new Database(string.Empty);
+        var conn = new Connection(db);
+
+        conn.Dispose();
+
+        // Must not throw and must not call lbug_connection_interrupt on the freed handle.
+        conn.Interrupt();
+        conn.Interrupt();
+    }
+
+    // CONC-2: a concurrent dispose/interrupt loop must never use-after-free the native handle. Not a
+    // deterministic repro (the window is tiny), but a best-effort stress that crashes the runner if the
+    // handle lifetime lock is removed or Interrupt stops honoring _disposed under it.
+    [SkippableFact]
+    public void Interrupt_RacingDispose_DoesNotCrash()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        for (int iteration = 0; iteration < 500; iteration++)
+        {
+            using var db = new Database(string.Empty);
+            var conn = new Connection(db);
+
+            using var ready = new Barrier(2);
+            var interrupter = Task.Run(() =>
+            {
+                ready.SignalAndWait();
+                for (int i = 0; i < 50; i++)
+                {
+                    conn.Interrupt();
+                }
+            });
+            var disposer = Task.Run(() =>
+            {
+                ready.SignalAndWait();
+                conn.Dispose();
+            });
+
+            Task.WaitAll(interrupter, disposer);
+        }
+    }
+
     // Reads field 0 from the first row and returns a Value we OWN (it is a copy the engine hands back
     // via lbug_flat_tuple_get_value with IsOwnedByCpp clear), so a double native-destroy is observable.
     private static Value MaterializeOwnedValue(QueryResult result)

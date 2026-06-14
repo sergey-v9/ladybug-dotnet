@@ -13,6 +13,11 @@ public sealed partial class Connection : IDisposable
 {
     private readonly Database _database;
     private readonly object _gate = new();
+
+    // Guards the native handle's lifetime so the gate-free Interrupt() can never call into a freed
+    // handle (CONC-2). Lock ordering is always _gate-before-_handleLock; only Dispose takes both,
+    // and Interrupt takes only _handleLock, so there is no deadlock and no use-after-free.
+    private readonly object _handleLock = new();
     private LbugConnection _handle;
     private int _disposed;
 
@@ -126,9 +131,16 @@ public sealed partial class Connection : IDisposable
             return;
         }
 
+        // Take the gate (so no query is mid-flight) and the handle lifetime lock (so no gate-free
+        // Interrupt is mid-flight) before freeing the native handle. _disposed is already set, so any
+        // Interrupt that acquires _handleLock after this sees it and bails out instead of using the
+        // freed handle. Ordering is _gate-before-_handleLock everywhere; only Dispose takes both.
         lock (_gate)
         {
-            Native.ConnectionDestroy(ref _handle);
+            lock (_handleLock)
+            {
+                Native.ConnectionDestroy(ref _handle);
+            }
         }
     }
 

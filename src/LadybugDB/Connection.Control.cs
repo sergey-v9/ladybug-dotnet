@@ -8,11 +8,22 @@ public sealed partial class Connection
 {
     /// <summary>Interrupts the query currently executing on this connection, if any. Safe to call
     /// from another thread while a query runs; it intentionally does not take the connection gate
-    /// (which the running query holds), only honoring the disposal guard.</summary>
+    /// (which the running query holds). After the connection is disposed this is a safe no-op.</summary>
     public void Interrupt()
     {
-        ThrowIfDisposed();
-        Native.ConnectionInterrupt(ref _handle);
+        // Gate-free by design (the running query holds _gate), so the handle lifetime lock — not the
+        // gate — is what makes this safe against a concurrent Dispose (CONC-2). Dispose sets _disposed
+        // before taking _handleLock, so once we hold the lock a non-zero _disposed means the handle is
+        // already (or about to be) freed and we must not touch it.
+        lock (_handleLock)
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
+
+            Native.ConnectionInterrupt(ref _handle);
+        }
     }
 
     /// <summary>Sets the per-query execution timeout. The engine aborts a query that exceeds it.</summary>
