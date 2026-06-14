@@ -37,11 +37,24 @@ public sealed partial class Connection : IDisposable
             throw new ArgumentNullException(nameof(cypher));
         }
 
-        lock (_gate)
+        using Diagnostics.QueryScope scope = Diagnostics.LadybugInstrumentation.StartQuery(cypher);
+        try
         {
-            ThrowIfDisposed();
-            LbugState state = Native.ConnectionQuery(ref _handle, cypher, out LbugQueryResult resultHandle);
-            return Finish(state, resultHandle);
+            QueryResult result;
+            lock (_gate)
+            {
+                ThrowIfDisposed();
+                LbugState state = Native.ConnectionQuery(ref _handle, cypher, out LbugQueryResult resultHandle);
+                result = Finish(state, resultHandle);
+            }
+
+            scope.SetSuccess();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            scope.SetError(ex);
+            throw;
         }
     }
 
