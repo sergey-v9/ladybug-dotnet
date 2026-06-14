@@ -67,6 +67,23 @@ public sealed class AsyncTests
         Assert.Equal(42, result);
     }
 
+    [Fact]
+    public void NormalizeCancellation_PreservesOriginalQueryExceptionAsInner()
+    {
+        // CONC-3: when a LadybugQueryException surfaces while the token is cancelled, normalizing it to
+        // OperationCanceledException must keep the original engine error as InnerException so a genuine
+        // failure (cancellation that landed for an unrelated reason) is not silently masked.
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var original = new LadybugQueryException("syntax error near 'RETURNN'");
+
+        OperationCanceledException normalized =
+            Connection.NormalizeCancellationException(original, cts.Token);
+
+        Assert.Same(original, normalized.InnerException);
+        Assert.Equal(cts.Token, normalized.CancellationToken);
+    }
+
     [SkippableFact]
     public async Task PrepareAsync_And_ExecuteAsync_RoundTrip()
     {

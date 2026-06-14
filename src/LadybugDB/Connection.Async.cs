@@ -15,9 +15,19 @@ namespace LadybugDB;
 /// offload; an interrupt-induced <see cref="LadybugQueryException"/> is normalized to
 /// <see cref="OperationCanceledException"/> when the token is cancelled.
 /// </summary>
+/// <remarks>
+/// By design (CONC-5), the async methods do not add real I/O concurrency to a single connection: the
+/// wrapped synchronous engine call still acquires the per-connection serialization gate. If several
+/// async calls are launched on the same <see cref="Connection"/> without being awaited in turn, all but
+/// the one holding the gate block a thread-pool thread until it is released. This mirrors Python's
+/// pool model. For genuine concurrency, use one <see cref="Connection"/> per concurrent operation or a
+/// connection pool (see the LadybugDB.Extensions pooling helpers) rather than sharing one connection.
+/// </remarks>
 public sealed partial class Connection
 {
     /// <summary>Executes a Cypher query asynchronously. Cancellation interrupts the running query.</summary>
+    /// <remarks>Concurrent un-awaited calls on a single connection serialize on the internal gate and
+    /// block a thread-pool thread (CONC-5); use one connection per concurrent operation or a pool.</remarks>
     public Task<QueryResult> QueryAsync(string cypher, CancellationToken ct = default)
     {
         if (cypher is null)
@@ -109,13 +119,21 @@ public sealed partial class Connection
             {
                 return await Task.Run(work, ct).ConfigureAwait(false);
             }
-            catch (LadybugQueryException) when (ct.IsCancellationRequested)
+            catch (LadybugQueryException ex) when (ct.IsCancellationRequested)
             {
-                // The interrupt surfaced as an engine error; normalize to cancellation.
-                throw new OperationCanceledException(ct);
+                // The interrupt surfaced as an engine error; normalize to cancellation but keep the
+                // original engine error as the inner exception so a genuine failure is not masked
+                // (CONC-3) -- e.g. when the token cancelled for an unrelated reason.
+                throw NormalizeCancellationException(ex, ct);
             }
         }
     }
+
+    // Wraps an engine error that surfaced under a cancelled token as an OperationCanceledException
+    // while preserving the original as InnerException (CONC-3). Internal so the contract is unit-tested.
+    internal static OperationCanceledException NormalizeCancellationException(
+        LadybugQueryException inner, CancellationToken ct)
+        => new("The query was canceled.", inner, ct);
 
     // Best-effort interrupt invoked from a cancellation callback: a disposed connection (or a race
     // with disposal) must never throw out of the registration, so swallow ObjectDisposedException.
