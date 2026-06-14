@@ -6,6 +6,15 @@ namespace LadybugDB;
 
 public sealed partial class Connection
 {
+    /// <summary>Interrupts the query currently executing on this connection, if any. Safe to call
+    /// from another thread while a query runs; it intentionally does not take the connection gate
+    /// (which the running query holds), only honoring the disposal guard.</summary>
+    public void Interrupt()
+    {
+        ThrowIfDisposed();
+        Native.ConnectionInterrupt(ref _handle);
+    }
+
     /// <summary>Sets the per-query execution timeout. The engine aborts a query that exceeds it.</summary>
     /// <param name="timeout">The timeout; rounded to whole milliseconds (the engine's unit).</param>
     public void SetQueryTimeout(TimeSpan timeout)

@@ -58,4 +58,44 @@ public sealed class ConnectionControlTests
             TestEnvironment.TryDelete(dbPath);
         }
     }
+
+    [SkippableFact]
+    public void Interrupt_AbortsRunningQuery()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+            conn.Query("CREATE NODE TABLE N(v INT64, PRIMARY KEY(v))").Dispose();
+            conn.Query("UNWIND range(1, 200000) AS x CREATE (:N {v: x})").Dispose();
+
+            Exception? captured = null;
+            var worker = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    conn.Query("MATCH (a:N), (b:N), (c:N) RETURN count(*)").Dispose();
+                }
+                catch (Exception ex)
+                {
+                    captured = ex;
+                }
+            });
+
+            worker.Start();
+            System.Threading.Thread.Sleep(50); // let the query start
+            conn.Interrupt();
+            worker.Join(TimeSpan.FromSeconds(30));
+
+            Assert.False(worker.IsAlive, "Interrupt did not unblock the query thread.");
+            Assert.IsType<LadybugQueryException>(captured);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
 }
