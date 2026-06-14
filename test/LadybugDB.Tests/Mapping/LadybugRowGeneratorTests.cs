@@ -148,6 +148,27 @@ public sealed class LadybugRowGeneratorTests
     }
 
     [Fact]
+    public void Generates_and_compiles_a_mapper_for_a_struct_row()
+    {
+        const string structRow = """
+            using LadybugDB;
+            namespace Demo
+            {
+                [LadybugRow]
+                public readonly record struct Point(long X, long Y);
+            }
+            """;
+
+        (GeneratorRunResult run, var diagnostics) = GeneratorHarness.RunAndCompile(structRow);
+
+        Assert.Empty(run.Diagnostics);
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+
+        string generated = string.Concat(run.GeneratedSources.Select(s => s.SourceText.ToString()));
+        Assert.Contains("typeof(T) == typeof(global::Demo.Point)", generated);
+    }
+
+    [Fact]
     public void Generator_is_incremental_and_caches_unchanged_models()
     {
         var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(SimpleRecord);
