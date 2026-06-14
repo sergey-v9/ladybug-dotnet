@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
+    <AssemblyName>LadybugDB.Arrow</AssemblyName>
+    <RootNamespace>LadybugDB.Arrow</RootNamespace>
+    <DebugType>portable</DebugType>
+    <IsPackable>true</IsPackable>
+    <PackageId>LadybugDB.Arrow</PackageId>
+    <Title>LadybugDB.Arrow - Apache Arrow interop</Title>
+    <Description>Apache.Arrow-typed RecordBatch export, Arrow ingest, and CSR over LadybugDB's raw Arrow C-Data-Interface export. Keeps the Apache.Arrow dependency off the core and Extensions packages.</Description>
+    <PackageTags>graph;graph-database;ladybug;apache-arrow;arrow;interop</PackageTags>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LadybugDB\LadybugDB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LadybugDB.Tests.Arrow" />
+  </ItemGroup>
+
+  <Import Project="$(CSharpDir)nuget\library-package.props" />
+
+</Project>
