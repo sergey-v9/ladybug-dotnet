@@ -1,8 +1,18 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/LadybugDB/LadybugDB.csproj" />
+    <Project Path="src/LadybugDB.Extensions/LadybugDB.Extensions.csproj" />
+    <Project Path="src/LadybugDB.Arrow/LadybugDB.Arrow.csproj" />
+    <Project Path="src/LadybugDB.SourceGen/LadybugDB.SourceGen.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/LadybugDB.Tests/LadybugDB.Tests.csproj" />
+    <Project Path="test/LadybugDB.Tests.Parity/LadybugDB.Tests.Parity.csproj" />
+    <Project Path="test/LadybugDB.Tests.Extensions/LadybugDB.Tests.Extensions.csproj" />
+    <Project Path="test/LadybugDB.Tests.Arrow/LadybugDB.Tests.Arrow.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/LadybugDB.Benchmarks/LadybugDB.Benchmarks.csproj" />
+    <Project Path="benchmarks/LadybugDB.Benchmarks.Tests/LadybugDB.Benchmarks.Tests.csproj" />
   </Folder>
 </Solution>
