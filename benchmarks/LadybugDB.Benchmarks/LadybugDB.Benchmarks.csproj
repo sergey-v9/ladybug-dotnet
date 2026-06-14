@@ -22,4 +22,12 @@
     <ProjectReference Include="..\..\src\LadybugDB\LadybugDB.csproj" />
   </ItemGroup>
 
+  <!-- The bench needs the native lib to actually run; staged copy is best-effort. -->
+  <Target Name="PlaceNativeLibrary" AfterTargets="Build">
+    <ItemGroup>
+      <_LadybugNative Include="$(NativeLibDir)runtimes\$(TargetRid)\native\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_LadybugNative)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_LadybugNative)' != ''" />
+  </Target>
+
 </Project>
