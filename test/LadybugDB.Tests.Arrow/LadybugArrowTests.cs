@@ -78,6 +78,50 @@ public sealed class LadybugArrowTests
         }
     }
 
+    [SkippableFact]
+    public void FullRoundTrip_QueryToRecordBatchAndBackToTable()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+            conn.Query("CREATE NODE TABLE Src(id INT64, name STRING, PRIMARY KEY(id))").Dispose();
+            conn.Query("CREATE (:Src {id: 1, name: 'Alice'})").Dispose();
+            conn.Query("CREATE (:Src {id: 2, name: 'Bob'})").Dispose();
+
+            // 1) Query -> Arrow RecordBatches.
+            List<RecordBatch> batches;
+            using (QueryResult r = conn.Query("MATCH (s:Src) RETURN s.id AS id, s.name AS name ORDER BY id"))
+            {
+                batches = r.ReadBatches().ToList();
+            }
+
+            Assert.Equal(2L, batches.Sum(b => (long)b.Length));
+
+            // 2) Ingest the first batch back as a new table.
+            conn.CreateArrowTable("Copy", batches[0]);
+            foreach (RecordBatch b in batches)
+            {
+                b.Dispose();
+            }
+
+            // 3) Query the new table and confirm the data survived the round trip.
+            using QueryResult check = conn.Query("MATCH (c:Copy) RETURN c.id AS id, c.name AS name ORDER BY id");
+            List<object?[]> rows = check.Rows().ToList();
+            Assert.Equal(2, rows.Count);
+            Assert.Equal(1L, rows[0][0]);
+            Assert.Equal("Alice", rows[0][1]);
+            Assert.Equal(2L, rows[1][0]);
+            Assert.Equal("Bob", rows[1][1]);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
     /// <summary>Builds a 2-column (id INT64 non-null, name STRING) RecordBatch from the given rows.</summary>
     private static RecordBatch BuildPeopleBatch(params (long Id, string Name)[] rows)
     {

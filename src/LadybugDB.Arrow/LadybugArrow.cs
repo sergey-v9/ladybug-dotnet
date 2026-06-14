@@ -94,6 +94,10 @@ public static partial class LadybugArrow
             throw new ArgumentNullException(nameof(batch));
         }
 
+        // Clone into Arrow-owned (allocator-backed) memory first: a batch IMPORTED from the engine's
+        // C-Data export wraps externally-owned buffers that the C-Data exporter cannot re-export
+        // ("failed on buffer #0"). The clone owns native buffers the exporter can hand off cleanly.
+        using RecordBatch exportable = batch.Clone();
         unsafe
         {
             // Allocate C-Data blocks via Apache.Arrow's own allocator (paired with its exporters'
@@ -101,8 +105,8 @@ public static partial class LadybugArrow
             // never free or release them ourselves.
             CArrowSchema* cSchema = CArrowSchema.Create();
             CArrowArray* cArray = CArrowArray.Create();
-            CArrowSchemaExporter.ExportSchema(batch.Schema, cSchema);
-            CArrowArrayExporter.ExportRecordBatch(batch, cArray);
+            CArrowSchemaExporter.ExportSchema(exportable.Schema, cSchema);
+            CArrowArrayExporter.ExportRecordBatch(exportable, cArray);
 
             // numArrays = 1: a single contiguous Arrow struct-array for the whole batch.
             using QueryResult result = connection.CreateArrowTableInternal(tableName, (IntPtr)cSchema, (IntPtr)cArray, 1UL);
@@ -144,12 +148,14 @@ public static partial class LadybugArrow
             throw new ArgumentNullException(nameof(toTable));
         }
 
+        // See CreateArrowTable: clone into allocator-backed memory so an imported batch re-exports.
+        using RecordBatch exportable = batch.Clone();
         unsafe
         {
             CArrowSchema* cSchema = CArrowSchema.Create();
             CArrowArray* cArray = CArrowArray.Create();
-            CArrowSchemaExporter.ExportSchema(batch.Schema, cSchema);
-            CArrowArrayExporter.ExportRecordBatch(batch, cArray);
+            CArrowSchemaExporter.ExportSchema(exportable.Schema, cSchema);
+            CArrowArrayExporter.ExportRecordBatch(exportable, cArray);
 
             using QueryResult result = connection.CreateArrowRelTableInternal(tableName, fromTable, toTable, (IntPtr)cSchema, (IntPtr)cArray, 1UL);
             GC.KeepAlive(result);
