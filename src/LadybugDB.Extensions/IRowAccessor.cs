@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 
 namespace LadybugDB.Extensions;
 
@@ -70,12 +69,9 @@ internal sealed class RowAccessor : IRowAccessor
 
     private static T Convert<T>(object value)
     {
-        if (value is T typed)
-        {
-            return typed;
-        }
-
-        Type target = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
-        return (T)System.Convert.ChangeType(value, target, CultureInfo.InvariantCulture);
+        // Delegate to the same conversion shim the generated row mappers use (LadybugRowConvert.To<T>)
+        // so this path handles enum / Guid / nullable-widening / DateOnly <-> DateTime identically
+        // (DRY). Callers above have already filtered out null, so the value is non-null here.
+        return LadybugRowConvert.To<T>(value);
     }
 }
