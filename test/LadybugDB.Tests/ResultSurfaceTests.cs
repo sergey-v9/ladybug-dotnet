@@ -70,4 +70,34 @@ public sealed class ResultSurfaceTests
             TestEnvironment.TryDelete(dbPath);
         }
     }
+
+    [SkippableFact]
+    public void Columns_ExposesNameAndType_AndIsCached()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            (Database db, Connection conn) = NewGraph(dbPath);
+            using (db)
+            using (conn)
+            {
+                using QueryResult result = conn.Query("MATCH (p:Person) RETURN p.name, p.age");
+
+                IReadOnlyList<ColumnSchema> columns = result.Columns;
+                Assert.Equal(2, columns.Count);
+                Assert.Equal("p.name", columns[0].Name);
+                Assert.Equal(DataTypeId.String, columns[0].Type.Id);
+                Assert.Equal("p.age", columns[1].Name);
+                Assert.Equal(DataTypeId.Int64, columns[1].Type.Id);
+
+                Assert.Same(columns, result.Columns); // cached: same instance
+            }
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
 }

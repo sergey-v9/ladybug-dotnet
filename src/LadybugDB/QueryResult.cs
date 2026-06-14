@@ -134,6 +134,29 @@ public sealed partial class QueryResult : IDisposable
         }
     }
 
+    /// <summary>All columns (name + logical type), built once and cached.</summary>
+    public IReadOnlyList<ColumnSchema> Columns
+    {
+        get
+        {
+            ThrowIfDisposed();
+            if (_columns is not null)
+            {
+                return _columns;
+            }
+
+            int count = checked((int)ColumnCount);
+            var schemas = new ColumnSchema[count];
+            for (int i = 0; i < count; i++)
+            {
+                schemas[i] = new ColumnSchema(GetColumnName((ulong)i), GetColumnType((ulong)i));
+            }
+
+            _columns = schemas;
+            return _columns;
+        }
+    }
+
     /// <summary>Whether another tuple is available from the current iterator position.</summary>
     public bool HasNext()
     {
