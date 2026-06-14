@@ -221,6 +221,19 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_query_result_get_query_summary", CallingConvention = Conv)]
     internal static extern LbugState QueryResultGetQuerySummary(ref LbugQueryResult queryResult, out LbugQuerySummary outQuerySummary);
 
+    [DllImport(LibraryName, EntryPoint = "lbug_query_result_get_column_data_type", CallingConvention = Conv)]
+    internal static extern LbugState QueryResultGetColumnDataType(ref LbugQueryResult queryResult, ulong index, out LbugLogicalType outColumnDataType);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_query_result_reset_iterator", CallingConvention = Conv)]
+    internal static extern void QueryResultResetIterator(ref LbugQueryResult queryResult);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_query_result_has_next_query_result", CallingConvention = Conv)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static extern bool QueryResultHasNextQueryResult(ref LbugQueryResult queryResult);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_query_result_get_next_query_result", CallingConvention = Conv)]
+    internal static extern LbugState QueryResultGetNextQueryResult(ref LbugQueryResult queryResult, out LbugQueryResult outNextQueryResult);
+
     [DllImport(LibraryName, EntryPoint = "lbug_query_result_has_next", CallingConvention = Conv)]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool QueryResultHasNext(ref LbugQueryResult queryResult);

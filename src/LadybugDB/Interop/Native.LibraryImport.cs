@@ -150,6 +150,19 @@ internal static partial class Native
     [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_get_query_summary")]
     internal static partial LbugState QueryResultGetQuerySummary(ref LbugQueryResult queryResult, out LbugQuerySummary outQuerySummary);
 
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_get_column_data_type")]
+    internal static partial LbugState QueryResultGetColumnDataType(ref LbugQueryResult queryResult, ulong index, out LbugLogicalType outColumnDataType);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_reset_iterator")]
+    internal static partial void QueryResultResetIterator(ref LbugQueryResult queryResult);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_has_next_query_result")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static partial bool QueryResultHasNextQueryResult(ref LbugQueryResult queryResult);
+
+    [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_get_next_query_result")]
+    internal static partial LbugState QueryResultGetNextQueryResult(ref LbugQueryResult queryResult, out LbugQueryResult outNextQueryResult);
+
     [LibraryImport(LibraryName, EntryPoint = "lbug_query_result_has_next")]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static partial bool QueryResultHasNext(ref LbugQueryResult queryResult);

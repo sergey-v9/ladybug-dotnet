@@ -181,6 +181,10 @@ public sealed class InteropDeclarationParity
             "lbug_query_summary_get_compiling_time",
             "lbug_query_summary_get_execution_time",
             "lbug_query_summary_destroy",
+            "lbug_query_result_get_column_data_type",
+            "lbug_query_result_reset_iterator",
+            "lbug_query_result_has_next_query_result",
+            "lbug_query_result_get_next_query_result",
         };
 
         foreach (string ep in required)
