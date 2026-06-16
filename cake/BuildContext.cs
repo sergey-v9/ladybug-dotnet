@@ -16,6 +16,8 @@ namespace LadybugDB.Build;
 /// </summary>
 public sealed class BuildContext : FrostingContext
 {
+    public const string DefaultRepositoryUrl = "https://github.com/LadybugDB/ladybug-dotnet";
+
     /// <summary>RID -> (release asset name, canonical native library file name).</summary>
     public static readonly IReadOnlyDictionary<string, (string Asset, string Library)> NativeAssets =
         new Dictionary<string, (string, string)>(StringComparer.Ordinal)
@@ -31,6 +33,8 @@ public sealed class BuildContext : FrostingContext
     {
         BuildConfiguration = context.Argument("configuration", "Release");
         Commit = context.Argument("commit", Environment.GetEnvironmentVariable("GITHUB_SHA") ?? string.Empty);
+        PackageRepositoryUrl = context.Argument("repository-url",
+            Environment.GetEnvironmentVariable("PACKAGE_REPOSITORY_URL") ?? DefaultRepositoryUrl);
 
         Root = FindBindingRoot();
 
@@ -68,6 +72,7 @@ public sealed class BuildContext : FrostingContext
     public string Version { get; }
     public string Commit { get; }
     public string EngineVersion { get; }
+    public string PackageRepositoryUrl { get; }
 
     public string Root { get; }
     public string ManagedProject { get; }

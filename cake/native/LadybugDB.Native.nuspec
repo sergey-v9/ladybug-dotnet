@@ -9,7 +9,7 @@
     <description>Native Ladybug engine libraries for all supported platforms. Companion to the managed LadybugDB package: reference both LadybugDB and LadybugDB.Native to run on any supported platform, or reference a single LadybugDB.Native.&lt;rid&gt; package for a slim, platform-specific app.</description>
     <summary>Native Ladybug engine binaries for all supported platforms.</summary>
     <projectUrl>https://github.com/ladybugdb/ladybug</projectUrl>
-    <repository type="git" url="https://github.com/LadybugDB/ladybug-dotnet" commit="$commit$" />
+    <repository type="git" url="$repositoryUrl$" commit="$commit$" />
     <tags>graph graph-database database cypher embedded ladybug native</tags>
 
     <!-- legal -->

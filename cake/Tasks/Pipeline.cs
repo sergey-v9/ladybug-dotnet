@@ -102,7 +102,8 @@ public sealed class PackManagedTask : FrostingTask<BuildContext>
     {
         var msbuild = new DotNetMSBuildSettings()
             .WithProperty("Version", context.Version)
-            .WithProperty("ContinuousIntegrationBuild", "true");
+            .WithProperty("ContinuousIntegrationBuild", "true")
+            .WithProperty("RepositoryUrl", context.PackageRepositoryUrl);
 
         if (!string.IsNullOrEmpty(context.Commit))
         {
@@ -127,7 +128,8 @@ public sealed class PackExtensionsTask : FrostingTask<BuildContext>
     {
         var msbuild = new DotNetMSBuildSettings()
             .WithProperty("Version", context.Version)
-            .WithProperty("ContinuousIntegrationBuild", "true");
+            .WithProperty("ContinuousIntegrationBuild", "true")
+            .WithProperty("RepositoryUrl", context.PackageRepositoryUrl);
 
         if (!string.IsNullOrEmpty(context.Commit))
         {
@@ -152,7 +154,8 @@ public sealed class PackArrowTask : FrostingTask<BuildContext>
     {
         var msbuild = new DotNetMSBuildSettings()
             .WithProperty("Version", context.Version)
-            .WithProperty("ContinuousIntegrationBuild", "true");
+            .WithProperty("ContinuousIntegrationBuild", "true")
+            .WithProperty("RepositoryUrl", context.PackageRepositoryUrl);
 
         if (!string.IsNullOrEmpty(context.Commit))
         {
@@ -184,7 +187,8 @@ public sealed class PackRuntimesTask : FrostingTask<BuildContext>
             var msbuild = new DotNetMSBuildSettings()
                 .WithProperty("Version", context.Version)
                 .WithProperty("NativeRid", rid)
-                .WithProperty("PackageId", $"LadybugDB.Native.{rid}");
+                .WithProperty("PackageId", $"LadybugDB.Native.{rid}")
+                .WithProperty("RepositoryUrl", context.PackageRepositoryUrl);
 
             if (!string.IsNullOrEmpty(context.Commit))
             {
@@ -214,7 +218,8 @@ public sealed class PackNativeMetaTask : FrostingTask<BuildContext>
     {
         string nuspec = File.ReadAllText(context.MetaNuspecTemplate)
             .Replace("$version$", context.Version)
-            .Replace("$commit$", context.Commit);
+            .Replace("$commit$", context.Commit)
+            .Replace("$repositoryUrl$", context.PackageRepositoryUrl);
 
         string generatedDir = Path.Combine(context.NativeDir, "obj");
         Directory.CreateDirectory(generatedDir);

@@ -1,0 +1,85 @@
+name: GitHub Packages Dev
+
+# Publishes fork-only prerelease packages to GitHub Packages from sergey-v9/ladybug-dotnet.
+# The repository/ref guard keeps this workflow inert if the file ever appears outside the fork's dev branch.
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    if: github.repository == 'sergey-v9/ladybug-dotnet' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine package and engine versions
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE="$(tr -d '[:space:]' < version.txt)"
+          BASE="${BASE%%+*}"
+          BASE="${BASE%%-*}"
+
+          IFS='.' read -r MAJOR MINOR PATCH _ <<< "$BASE"
+          if [[ ! "${MAJOR:-}" =~ ^[0-9]+$ || ! "${MINOR:-}" =~ ^[0-9]+$ || ! "${PATCH:-}" =~ ^[0-9]+$ ]]; then
+            echo "Package version '$BASE' must start with three numeric engine segments." >&2
+            exit 1
+          fi
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          VERSION="${BASE}-dev.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}.g${SHORT_SHA}"
+          ENGINE="v${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "engine=$ENGINE" >> "$GITHUB_OUTPUT"
+          echo "Resolved package version: $VERSION"
+          echo "Pulling native libs from LadybugDB/ladybug release: $ENGINE"
+
+      - name: Test gate (host RID against the real engine)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          dotnet run --project cake/LadybugDB.Build.csproj --
+          --target Test
+          --engine-version "${{ steps.ver.outputs.engine }}"
+
+      - name: Pack + verify the full package family
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          dotnet run --project cake/LadybugDB.Build.csproj --
+          --target Pack
+          --package-version "${{ steps.ver.outputs.version }}"
+          --engine-version "${{ steps.ver.outputs.engine }}"
+          --repository-url "https://github.com/sergey-v9/ladybug-dotnet"
+
+      - name: Configure GitHub Packages source
+        run: >
+          dotnet nuget add source
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+          --name github
+          "https://nuget.pkg.github.com/sergey-v9/index.json"
+
+      - name: Push packages to GitHub Packages
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --source github
+          --api-key "${{ secrets.GITHUB_TOKEN }}"
+          --skip-duplicate
+          --no-symbols

@@ -127,6 +127,32 @@ contents, and publishes all packages to NuGet through trusted publishing.
 
 Manual `workflow_dispatch` builds and uploads artifacts without publishing. Use it for dry runs.
 
+## Fork Dev Packages
+
+The `github-packages-dev.yml` workflow is for the `sergey-v9/ladybug-dotnet` fork only. It runs on
+pushes to the fork's `dev` branch and publishes prerelease packages to GitHub Packages under
+`https://nuget.pkg.github.com/sergey-v9/index.json`.
+
+The workflow has an explicit repository/ref guard:
+
+```yaml
+github.repository == 'sergey-v9/ladybug-dotnet' && github.ref == 'refs/heads/dev'
+```
+
+Dev package versions are generated from `version.txt` as
+`<base>-dev.<run>.<attempt>.g<short_sha>`, for example `0.17.1.0-dev.123.1.g0e709a0`. The package IDs
+stay the same as the release packages, so consumers must restore from the GitHub Packages source and
+select the generated prerelease version. NuGet normalizes a trailing fourth numeric `.0`, so
+`0.17.1.0-dev.123.1.g0e709a0` is displayed and stored as `0.17.1-dev.123.1.g0e709a0`.
+
+Fork packages must stamp the fork repository URL so GitHub Packages associates them with the fork:
+
+```powershell
+./build.ps1 --target Pack --package-version 0.17.1.0-dev.0.0.local --repository-url https://github.com/sergey-v9/ladybug-dotnet
+```
+
+When `--repository-url` is omitted, the Cake pipeline keeps the upstream repository metadata.
+
 ## ABI Update Checklist
 
 The binding mirrors the C API in `LadybugDB/ladybug` exactly. ABI mistakes can compile cleanly and still
