@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -79,15 +80,14 @@ internal static partial class Native
         // docs/native-loading-and-extensions.md. Windows has no such scoping and falls straight through.
         if (!OperatingSystem.IsWindows())
         {
-            string? baseDir = TryGetBaseDirectory();
             foreach (string candidate in GetCandidateNames())
             {
-                // Prefer the bundled engine sitting next to the app, loaded by absolute path so
-                // RTLD_GLOBAL applies to exactly that file. A bare-soname dlopen would not find a
-                // bundled (non-system-installed) library.
-                if (!string.IsNullOrEmpty(baseDir))
+                // Prefer bundled/package assets loaded by absolute path so RTLD_GLOBAL applies to
+                // exactly that file. A bare-soname dlopen would not find non-system-installed
+                // libraries, and package consumers often receive assets under runtimes/<rid>/native.
+                foreach (string probeDirectory in GetNativeProbeDirectories())
                 {
-                    string full = Path.Combine(baseDir!, candidate);
+                    string full = Path.Combine(probeDirectory, candidate);
                     if (File.Exists(full) && UnixNativeMethods.TryGlobalLoad(full, out IntPtr bundled))
                     {
                         return bundled;
@@ -119,12 +119,11 @@ internal static partial class Native
             return;
         }
 
-        string? baseDir = TryGetBaseDirectory();
         foreach (string candidate in GetCandidateNames())
         {
-            if (!string.IsNullOrEmpty(baseDir))
+            foreach (string probeDirectory in GetNativeProbeDirectories())
             {
-                string full = Path.Combine(baseDir!, candidate);
+                string full = Path.Combine(probeDirectory, candidate);
                 if (File.Exists(full) && UnixNativeMethods.TryGlobalLoad(full, out _))
                 {
                     return;
@@ -155,6 +154,47 @@ internal static partial class Native
         }
     }
 
+    private static string[] GetNativeProbeDirectories()
+    {
+        string? baseDir = TryGetBaseDirectory();
+        if (string.IsNullOrEmpty(baseDir))
+        {
+            return Array.Empty<string>();
+        }
+
+        var directories = new List<string> { baseDir! };
+        foreach (string rid in GetRuntimeAssetRids())
+        {
+            directories.Add(Path.Combine(baseDir!, "runtimes", rid, "native"));
+        }
+
+        return directories.ToArray();
+    }
+
+    private static string[] GetRuntimeAssetRids()
+    {
+        string arch = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => "x64",
+            Architecture.Arm64 => "arm64",
+            Architecture.X86 => "x86",
+            Architecture.Arm => "arm",
+            _ => RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()
+        };
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return new[] { "win-" + arch };
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            return new[] { "osx-" + arch };
+        }
+
+        return new[] { "linux-" + arch };
+    }
+
     /// <summary>
     /// Candidate native-library names to probe, in priority order. The shipped Unix asset is
     /// <c>liblbug.*</c> even though the import name is <c>lbug_shared</c>, so the <c>liblbug</c> sonames
@@ -177,6 +217,9 @@ internal static partial class Native
 
     /// <summary>Test-only accessor for <see cref="GetCandidateNames"/> (exercised by the resolver tests).</summary>
     internal static string[] GetCandidateNamesForTest() => GetCandidateNames();
+
+    /// <summary>Test-only accessor for <see cref="GetNativeProbeDirectories"/>.</summary>
+    internal static string[] GetNativeProbeDirectoriesForTest() => GetNativeProbeDirectories();
 
     /// <summary>Convenience wrapper for <c>lbug_get_version</c> (owns and frees the returned string).</summary>
     internal static string? GetVersion() => TakeString(GetVersionPtr());
