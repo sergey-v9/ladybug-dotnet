@@ -26,11 +26,6 @@ public sealed class LogicalType
         FixedArraySize = fixedArraySize;
     }
 
-    /// <summary>Test-only factory that builds a <see cref="LogicalType"/> from decoded fields
-    /// without touching the native library. Used by managed-only rendering tests.</summary>
-    internal static LogicalType CreateForTests(DataTypeId id, LogicalType? child, ulong? fixedArraySize)
-        => new(id, child, fixedArraySize);
-
     /// <summary>
     /// Builds a fully-decoded <see cref="LogicalType"/> from an owned native logical-type handle and
     /// destroys that handle (and any child handles it walks). The returned managed type holds no

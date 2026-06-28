@@ -72,6 +72,78 @@ public sealed class ResultSurfaceTests
     }
 
     [SkippableFact]
+    public void GetColumnType_ToString_RendersScalarListAndFixedArrayExactly()
+    {
+        // Pins LogicalType.ToString()'s exact formatting on the native path (relocated from the former
+        // managed-only LogicalTypeTests.LogicalType_ToString_RendersScalarsNestedAndArrays): a scalar
+        // renders as its bare type name, a LIST as LIST(child), and a fixed ARRAY as ARRAY(child, n).
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            // Scalar + LIST from literals.
+            using (QueryResult r = conn.Query("RETURN 42 AS scalar, [1, 2, 3] AS list"))
+            {
+                Assert.Equal("INT64", r.GetColumnType(0).ToString());
+                Assert.Equal("LIST(INT64)", r.GetColumnType(1).ToString());
+            }
+
+            // Fixed ARRAY from a typed column.
+            conn.Query("CREATE NODE TABLE A(id INT64, v INT64[3], PRIMARY KEY(id))").Dispose();
+            conn.Query("CREATE (:A {id: 1, v: [10, 20, 30]})").Dispose();
+            using (QueryResult arr = conn.Query("MATCH (a:A) RETURN a.v"))
+            {
+                Assert.Equal("ARRAY(INT64, 3)", arr.GetColumnType(0).ToString());
+            }
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
+    public void ColumnSchema_EqualityUsesReferenceEqualityOverLogicalType()
+    {
+        // Relocated from the former managed-only LogicalTypeTests once the LogicalType test factory was
+        // removed: ColumnSchema is a record whose LogicalType member is a class, so record equality
+        // compares LogicalType by reference. Two schemas with the same Name and the SAME LogicalType
+        // instance are equal; the same Name with a DIFFERENT (distinct) LogicalType instance is not.
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            // Two independent queries yield two distinct LogicalType instances of the same INT64 type.
+            using QueryResult r1 = conn.Query("RETURN 1 AS x");
+            using QueryResult r2 = conn.Query("RETURN 2 AS y");
+            LogicalType t1 = r1.GetColumnType(0);
+            LogicalType t2 = r2.GetColumnType(0);
+            Assert.NotSame(t1, t2);
+
+            var a = new ColumnSchema("age", t1);
+            var b = new ColumnSchema("age", t1);
+
+            Assert.Equal("age", a.Name);             // ctor-arg exposure
+            Assert.Same(t1, a.Type);                 // ctor-arg exposure
+            Assert.Equal(a, b);                       // same Name + same LogicalType reference
+            Assert.NotEqual(a, new ColumnSchema("name", t1));
+            Assert.NotEqual(a, new ColumnSchema("age", t2)); // different LogicalType reference
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
     public void Columns_ExposesNameAndType_AndIsCached()
     {
         Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
