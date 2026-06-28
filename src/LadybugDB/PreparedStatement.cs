@@ -366,19 +366,19 @@ public sealed class PreparedStatement : IDisposable
 
     private static IntPtr CreateStructValue(IReadOnlyDictionary<string, object?> fields)
     {
-        var fieldNamePtrs = new List<IntPtr>(fields.Count);
-        var fieldValuePtrs = new List<IntPtr>(fields.Count);
+        var names = new IntPtr[fields.Count];
+        var values = new IntPtr[fields.Count];
+        int allocated = 0;
         try
         {
             foreach (KeyValuePair<string, object?> field in fields)
             {
-                fieldNamePtrs.Add(Utf8ToCoTaskMem(field.Key));
-                fieldValuePtrs.Add(CreateNativeValue(field.Value));
+                names[allocated] = Utf8ToCoTaskMem(field.Key);
+                allocated++;
+                values[allocated - 1] = CreateNativeValue(field.Value);
             }
 
-            IntPtr[] names = fieldNamePtrs.ToArray();
-            IntPtr[] values = fieldValuePtrs.ToArray();
-            LbugState state = Native.ValueCreateStruct((ulong)names.Length, names, values, out IntPtr structHandle);
+            LbugState state = Native.ValueCreateStruct((ulong)allocated, names, values, out IntPtr structHandle);
             if (state != LbugState.Success || structHandle == IntPtr.Zero)
             {
                 throw new LadybugException("Failed to create a STRUCT parameter value.");
@@ -388,14 +388,17 @@ public sealed class PreparedStatement : IDisposable
         }
         finally
         {
-            foreach (IntPtr ptr in fieldValuePtrs)
+            for (int i = 0; i < allocated; i++)
             {
-                Native.ValueDestroy(ptr);
-            }
+                if (values[i] != IntPtr.Zero)
+                {
+                    Native.ValueDestroy(values[i]);
+                }
 
-            foreach (IntPtr ptr in fieldNamePtrs)
-            {
-                Marshal.FreeCoTaskMem(ptr);
+                if (names[i] != IntPtr.Zero)
+                {
+                    Marshal.FreeCoTaskMem(names[i]);
+                }
             }
         }
     }
