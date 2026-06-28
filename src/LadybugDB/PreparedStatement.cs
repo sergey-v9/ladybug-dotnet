@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using LadybugDB.Interop;
 
@@ -402,17 +403,30 @@ public sealed class PreparedStatement : IDisposable
     // Allocates a NUL-terminated UTF-8 copy of the string in unmanaged memory (CoTaskMem), portable
     // across both target frameworks (Marshal.StringToCoTaskMemUTF8 is unavailable on ns2.0). Free
     // with Marshal.FreeCoTaskMem.
-    private static IntPtr Utf8ToCoTaskMem(string value)
+    private static unsafe IntPtr Utf8ToCoTaskMem(string value)
     {
         if (value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }
 
-        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(value);
-        IntPtr buffer = Marshal.AllocCoTaskMem(bytes.Length + 1);
-        Marshal.Copy(bytes, 0, buffer, bytes.Length);
-        Marshal.WriteByte(buffer, bytes.Length, 0);
+        int byteCount = Encoding.UTF8.GetByteCount(value);
+        IntPtr buffer = Marshal.AllocCoTaskMem(byteCount + 1);
+        try
+        {
+            fixed (char* chars = value)
+            {
+                Encoding.UTF8.GetBytes(chars, value.Length, (byte*)buffer, byteCount);
+            }
+
+            Marshal.WriteByte(buffer, byteCount, 0);
+        }
+        catch
+        {
+            Marshal.FreeCoTaskMem(buffer);
+            throw;
+        }
+
         return buffer;
     }
 

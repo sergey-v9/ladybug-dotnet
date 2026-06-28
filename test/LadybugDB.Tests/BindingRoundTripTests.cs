@@ -144,6 +144,7 @@ public sealed class BindingRoundTripTests
             {
                 ["x"] = 1L,
                 ["y"] = "a",
+                ["café"] = "crème",
             };
             using PreparedStatement stmt = conn.Prepare("RETURN $s AS s");
             stmt.Bind("s", fields);
@@ -153,6 +154,7 @@ public sealed class BindingRoundTripTests
                 System.Linq.Enumerable.Single(result.Rows())[0]);
             Assert.Equal(1L, dict["x"]);
             Assert.Equal("a", dict["y"]);
+            Assert.Equal("crème", dict["café"]);
         }
         finally
         {

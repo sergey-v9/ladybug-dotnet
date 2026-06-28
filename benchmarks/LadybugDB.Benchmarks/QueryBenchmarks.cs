@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using BenchmarkDotNet.Attributes;
 using LadybugDB;
@@ -19,7 +20,9 @@ public class QueryBenchmarks
     private Connection _conn = null!;
     private PreparedStatement _prepared = null!;
     private PreparedStatement _blobPrepared = null!;
+    private PreparedStatement _structPrepared = null!;
     private byte[] _blob = null!;
+    private Dictionary<string, object?> _struct = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -36,16 +39,30 @@ public class QueryBenchmarks
 
         _prepared = _conn.Prepare("MATCH (p:Person) WHERE p.age >= $a RETURN p.name");
         _blobPrepared = _conn.Prepare("RETURN CAST($b AS BLOB)");
+        _structPrepared = _conn.Prepare("RETURN $s");
         _blob = new byte[512];
         for (int i = 0; i < _blob.Length; i++)
         {
             _blob[i] = (byte)i;
         }
+
+        _struct = new Dictionary<string, object?>
+        {
+            ["name"] = "Alice",
+            ["age"] = 42L,
+            ["score"] = 12.5d,
+            ["active"] = true,
+            ["city"] = "Paris",
+            ["role"] = "admin",
+            ["label"] = "cafe",
+            ["notes"] = "ready"
+        };
     }
 
     [GlobalCleanup]
     public void Cleanup()
     {
+        _structPrepared.Dispose();
         _blobPrepared.Dispose();
         _prepared.Dispose();
         _conn.Dispose();
@@ -86,5 +103,12 @@ public class QueryBenchmarks
     {
         _blobPrepared.Bind("b", _blob);
         return _blob.Length;
+    }
+
+    [Benchmark]
+    public int BindStruct()
+    {
+        _structPrepared.Bind("s", _struct);
+        return _struct.Count;
     }
 }

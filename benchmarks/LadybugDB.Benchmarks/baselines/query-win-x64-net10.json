@@ -23,5 +23,10 @@
     "Name": "BindBlob",
     "MeanMs": 0.002254412384033203,
     "AllocatedBytes": 4120
+  },
+  {
+    "Name": "BindStruct",
+    "MeanMs": 0.00694507548014323,
+    "AllocatedBytes": 472
   }
 ]
