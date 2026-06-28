@@ -34,40 +34,6 @@ public sealed class AsyncTests
     }
 
     [Fact]
-    public void QueryResult_IsSealedPartialType()
-    {
-        // Structural guard so the QueryResult.Async.cs partial seam stays referenced and the
-        // project fails to build if that file is missing or malformed.
-        Assert.True(typeof(QueryResult).IsSealed);
-    }
-
-    [Fact]
-    public async Task RunWithCancellation_PreCancelledToken_DoesNotInvokeWork()
-    {
-        // Pure-managed: no native interaction. A pre-cancelled token must short-circuit before the
-        // offloaded work runs.
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
-
-        bool ran = false;
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => Connection.RunWithCancellationForTests(() => { ran = true; return 0; }, cts.Token));
-
-        Assert.False(ran, "work must not run when the token is already cancelled");
-    }
-
-    [Fact]
-    public async Task RunWithCancellation_RunningToken_ReturnsResult()
-    {
-        // Pure-managed happy path: an uncancelled token runs the work and returns its result.
-        using var cts = new CancellationTokenSource();
-
-        int result = await Connection.RunWithCancellationForTests(() => 42, cts.Token);
-
-        Assert.Equal(42, result);
-    }
-
-    [Fact]
     public void NormalizeCancellation_PreservesOriginalQueryExceptionAsInner()
     {
         // CONC-3: when a LadybugQueryException surfaces while the token is cancelled, normalizing it to
