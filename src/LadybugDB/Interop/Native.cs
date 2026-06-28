@@ -154,7 +154,7 @@ internal static partial class Native
         }
     }
 
-    private static string[] GetNativeProbeDirectories()
+    internal static string[] GetNativeProbeDirectories()
     {
         string? baseDir = TryGetBaseDirectory();
         if (string.IsNullOrEmpty(baseDir))
@@ -200,7 +200,7 @@ internal static partial class Native
     /// <c>liblbug.*</c> even though the import name is <c>lbug_shared</c>, so the <c>liblbug</c> sonames
     /// lead on Linux/macOS. Available on both target frameworks.
     /// </summary>
-    private static string[] GetCandidateNames()
+    internal static string[] GetCandidateNames()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -214,12 +214,6 @@ internal static partial class Native
 
         return new[] { "liblbug.so", "liblbug", "lbug_shared" };
     }
-
-    /// <summary>Test-only accessor for <see cref="GetCandidateNames"/> (exercised by the resolver tests).</summary>
-    internal static string[] GetCandidateNamesForTest() => GetCandidateNames();
-
-    /// <summary>Test-only accessor for <see cref="GetNativeProbeDirectories"/>.</summary>
-    internal static string[] GetNativeProbeDirectoriesForTest() => GetNativeProbeDirectories();
 
     /// <summary>Convenience wrapper for <c>lbug_get_version</c> (owns and frees the returned string).</summary>
     internal static string? GetVersion() => TakeString(GetVersionPtr());

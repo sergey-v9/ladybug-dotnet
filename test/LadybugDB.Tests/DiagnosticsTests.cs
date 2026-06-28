@@ -46,7 +46,7 @@ public sealed class DiagnosticsTests
         meterListener.Start();
 
         // Touch the static so the Meter and its instruments are constructed.
-        LadybugDiagnostics.EnsureInitialized();
+        _ = LadybugDiagnostics.Meter;
 
         Assert.Contains("db.query.count", instruments);
         Assert.Contains("db.query.errors", instruments);

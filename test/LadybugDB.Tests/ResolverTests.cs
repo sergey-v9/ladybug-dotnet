@@ -28,7 +28,7 @@ public sealed class ResolverTests
     [Fact]
     public void GetCandidateNames_AreNonEmptyAndPlatformShaped()
     {
-        string[] names = Native.GetCandidateNamesForTest();
+        string[] names = Native.GetCandidateNames();
         Assert.NotEmpty(names);
         Assert.All(names, n => Assert.False(string.IsNullOrWhiteSpace(n)));
 
@@ -48,7 +48,7 @@ public sealed class ResolverTests
     [Fact]
     public void GetNativeProbeDirectories_IncludeNuGetRuntimeAssetLayout()
     {
-        string[] directories = Native.GetNativeProbeDirectoriesForTest();
+        string[] directories = Native.GetNativeProbeDirectories();
         Assert.NotEmpty(directories);
         Assert.All(directories, d => Assert.False(string.IsNullOrWhiteSpace(d)));
 

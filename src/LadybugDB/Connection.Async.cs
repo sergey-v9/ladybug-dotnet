@@ -133,14 +133,4 @@ public sealed partial class Connection
             // The connection was disposed concurrently; nothing to interrupt.
         }
     }
-
-    // Native-free test hook for the cancellation contract: honors ct before and after the offload with
-    // no native interaction, so the cancellation semantics can be verified without the engine.
-    internal static async Task<T> RunWithCancellationForTests<T>(Func<T> work, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        T result = await Task.Run(work, ct).ConfigureAwait(false);
-        ct.ThrowIfCancellationRequested();
-        return result;
-    }
 }

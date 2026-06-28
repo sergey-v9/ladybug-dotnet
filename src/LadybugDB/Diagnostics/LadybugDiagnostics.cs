@@ -32,17 +32,4 @@ public static class LadybugDiagnostics
     /// <summary>Wall-clock duration of query executions, in milliseconds.</summary>
     internal static readonly Histogram<double> QueryDurationMs =
         Meter.CreateHistogram<double>("db.query.duration.ms");
-
-    /// <summary>
-    /// Forces the static instruments to be constructed. The static initializer already does this on
-    /// first access; this method gives callers (and tests) a no-side-effect way to trigger it.
-    /// </summary>
-    public static void EnsureInitialized()
-    {
-        // Referencing the fields is enough to run the type initializer.
-        _ = ActivitySource;
-        _ = QueryCount;
-        _ = QueryErrors;
-        _ = QueryDurationMs;
-    }
 }

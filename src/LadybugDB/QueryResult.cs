@@ -260,19 +260,6 @@ public sealed partial class QueryResult : IDisposable
         Native.QueryResultDestroy(ref _handle);
     }
 
-    /// <summary>
-    /// Internal seam for the Arrow partial (WS-E): runs <paramref name="action"/> against the raw
-    /// native query-result handle under the disposal guard. Not part of the public surface.
-    /// </summary>
-    internal T WithHandle<T>(HandleFunc<T> action)
-    {
-        ThrowIfDisposed();
-        return action(ref _handle);
-    }
-
-    /// <summary>Delegate that operates on the native query-result handle.</summary>
-    internal delegate T HandleFunc<T>(ref Interop.LbugQueryResult handle);
-
     private static object? ReadCell(FlatTuple tuple, int index, DataTypeId typeId)
     {
         switch (typeId)
