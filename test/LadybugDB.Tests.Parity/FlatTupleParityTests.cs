@@ -39,6 +39,30 @@ public sealed class FlatTupleParityTests
         finally { conn.Dispose(); db.Dispose(); ParityEnvironment.TryDelete(path); }
     }
 
+    [SkippableFact]
+    public void Typed_accessors_read_scalars_without_value_wrapper()
+    {
+        Skip.IfNot(ParityEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+        string path = ParityEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(path);
+            using var conn = new Connection(db);
+            using QueryResult r = conn.Query(
+                "RETURN 'Alice' AS name, 35 AS age, CAST(1.25 AS FLOAT) AS height, true AS flag, NULL AS missing");
+            using FlatTuple t = r.GetNext();
+
+            Assert.Equal("Alice", t.GetString(0));
+            Assert.Equal(35L, t.GetInt64(1));
+            Assert.Equal(1.25f, t.GetFloat(2), 3);
+            Assert.True(t.GetBool(3));
+            Assert.True(t.IsNull(4));
+            Assert.Equal(0L, t.GetInt64OrDefault(4));
+            Assert.Throws<LadybugException>(() => t.GetInt64(0));
+        }
+        finally { ParityEnvironment.TryDelete(path); }
+    }
+
     [SkippableFact] // upstream GetValue out-of-range index
     public void GetValue_out_of_range_throws()
     {

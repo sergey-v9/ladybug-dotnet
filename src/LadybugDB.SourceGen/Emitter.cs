@@ -77,9 +77,22 @@ internal static class Emitter
         sb.AppendLine("        {");
         sb.AppendLine("            var __idx = BuildIndex(result.ColumnNames);");
         sb.AppendLine($"            var __list = new System.Collections.Generic.List<{model.TypeFullName}>();");
+        if (CanEmitTypedAccessorPath(model))
+        {
+            sb.AppendLine($"            if ({CanUseTypedAccessorsMethodName(model)}(result.Columns, __idx))");
+            sb.AppendLine("            {");
+            sb.AppendLine("                while (result.HasNext())");
+            sb.AppendLine("                {");
+            sb.AppendLine("                    using var __tuple = result.GetNext();");
+            sb.AppendLine($"                    __list.Add({BuildConstruction(model, ConvertTypedTuple)});");
+            sb.AppendLine("                }");
+            sb.AppendLine("                return __list;");
+            sb.AppendLine("            }");
+        }
+
         sb.AppendLine("            foreach (var __row in result.Rows())");
         sb.AppendLine("            {");
-        sb.AppendLine($"                __list.Add({BuildConstruction(model)});");
+        sb.AppendLine($"                __list.Add({BuildConstruction(model, ConvertMaterializedRow)});");
         sb.AppendLine("            }");
         sb.AppendLine("            return __list;");
         sb.AppendLine("        }");
@@ -89,14 +102,33 @@ internal static class Emitter
         sb.AppendLine($"        private static async System.Collections.Generic.IAsyncEnumerable<{model.TypeFullName}> {MapAsyncMethodName(model)}(global::LadybugDB.QueryResult result, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken ct)");
         sb.AppendLine("        {");
         sb.AppendLine("            var __idx = BuildIndex(result.ColumnNames);");
+        if (CanEmitTypedAccessorPath(model))
+        {
+            sb.AppendLine($"            if ({CanUseTypedAccessorsMethodName(model)}(result.Columns, __idx))");
+            sb.AppendLine("            {");
+            sb.AppendLine("                while (result.HasNext())");
+            sb.AppendLine("                {");
+            sb.AppendLine("                    ct.ThrowIfCancellationRequested();");
+            sb.AppendLine("                    using var __tuple = result.GetNext();");
+            sb.AppendLine($"                    yield return {BuildConstruction(model, ConvertTypedTuple)};");
+            sb.AppendLine("                }");
+            sb.AppendLine("                yield break;");
+            sb.AppendLine("            }");
+        }
+
         sb.AppendLine("            foreach (var __row in result.Rows())");
         sb.AppendLine("            {");
         sb.AppendLine("                ct.ThrowIfCancellationRequested();");
-        sb.AppendLine($"                yield return {BuildConstruction(model)};");
+        sb.AppendLine($"                yield return {BuildConstruction(model, ConvertMaterializedRow)};");
         sb.AppendLine("            }");
         sb.AppendLine("            await System.Threading.Tasks.Task.CompletedTask;");
         sb.AppendLine("        }");
         sb.AppendLine();
+
+        if (CanEmitTypedAccessorPath(model))
+        {
+            EmitTypedAccessorGuard(sb, model);
+        }
     }
 
     private static void EmitIndexBuilder(StringBuilder sb)
@@ -110,7 +142,7 @@ internal static class Emitter
         sb.AppendLine();
     }
 
-    private static string BuildConstruction(RowModel model)
+    private static string BuildConstruction(RowModel model, System.Func<RowMember, string> convert)
     {
         if (model.UsePositionalConstructor)
         {
@@ -118,17 +150,17 @@ internal static class Emitter
             var ctorArgs = model.Members
                 .Where(m => m.Kind == MemberKind.ConstructorParameter)
                 .OrderBy(m => m.ConstructorOrdinal)
-                .Select(Convert);
+                .Select(convert);
             return $"new {model.TypeFullName}({string.Join(", ", ctorArgs)})";
         }
 
         var inits = model.Members
             .Where(m => m.Kind == MemberKind.SettableProperty)
-            .Select(m => $"{m.MemberName} = {Convert(m)}");
+            .Select(m => $"{m.MemberName} = {convert(m)}");
         return $"new {model.TypeFullName}() {{ {string.Join(", ", inits)} }}";
     }
 
-    private static string Convert(RowMember m)
+    private static string ConvertMaterializedRow(RowMember m)
     {
         // Reflection-free conversion: index the row by the column ordinal, cast through the
         // binding's CLR result type. NULL flows through as default for the target type.
@@ -136,9 +168,107 @@ internal static class Emitter
         return $"global::LadybugDB.LadybugRowConvert.To<{m.TypeFullName}>({cell})";
     }
 
+    private static string ConvertTypedTuple(RowMember m)
+    {
+        TypedAccessor accessor = GetTypedAccessor(m)!;
+        string index = $"__idx[\"{m.ColumnName}\"]";
+        string expression = accessor.IsString
+            ? $"__tuple.{accessor.ReadMethod}({index})"
+            : $"__tuple.{accessor.ReadMethod}({index})";
+        return accessor.IsString && !m.IsNullable ? expression + "!" : expression;
+    }
+
+    private static void EmitTypedAccessorGuard(StringBuilder sb, RowModel model)
+    {
+        sb.AppendLine($"        private static bool {CanUseTypedAccessorsMethodName(model)}(System.Collections.Generic.IReadOnlyList<global::LadybugDB.ColumnSchema> columns, System.Collections.Generic.Dictionary<string, int> idx)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            return");
+        for (int i = 0; i < model.Members.Length; i++)
+        {
+            RowMember member = model.Members[i];
+            TypedAccessor accessor = GetTypedAccessor(member)!;
+            string suffix = i == model.Members.Length - 1 ? ";" : " &&";
+            string indexName = $"__{Mangle(member.ColumnName)}Index{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+            sb.AppendLine($"                idx.TryGetValue(\"{member.ColumnName}\", out int {indexName}) &&");
+            sb.AppendLine($"                {BuildTypeCheck($"columns[{indexName}].Type.Id", accessor)}{suffix}");
+        }
+
+        sb.AppendLine("        }");
+        sb.AppendLine();
+    }
+
+    private static string BuildTypeCheck(string typeExpression, TypedAccessor accessor)
+    {
+        if (accessor.DataType == "Int64")
+        {
+            return $"({typeExpression} == global::LadybugDB.DataTypeId.Int64 || {typeExpression} == global::LadybugDB.DataTypeId.Serial)";
+        }
+
+        return $"{typeExpression} == global::LadybugDB.DataTypeId.{accessor.DataType}";
+    }
+
+    private static bool CanEmitTypedAccessorPath(RowModel model) =>
+        model.Members.Length > 0 && model.Members.All(m => GetTypedAccessor(m) is not null);
+
+    private static TypedAccessor? GetTypedAccessor(RowMember member)
+    {
+        // Nullable<T> still needs the materialized fallback so NULL maps to a nullable value rather
+        // than the default underlying value. Nullable reference strings are safe.
+        if (member.IsNullable && !IsString(member.TypeFullName))
+        {
+            return null;
+        }
+
+        string type = NormalizeType(member.TypeFullName);
+        return type switch
+        {
+            "System.String" => new TypedAccessor("String", "GetString", IsString: true),
+            "System.Boolean" => new TypedAccessor("Bool", "GetBoolOrDefault"),
+            "System.SByte" => new TypedAccessor("Int8", "GetInt8OrDefault"),
+            "System.Int16" => new TypedAccessor("Int16", "GetInt16OrDefault"),
+            "System.Int32" => new TypedAccessor("Int32", "GetInt32OrDefault"),
+            "System.Int64" => new TypedAccessor("Int64", "GetInt64OrDefault"),
+            "System.Byte" => new TypedAccessor("UInt8", "GetUInt8OrDefault"),
+            "System.UInt16" => new TypedAccessor("UInt16", "GetUInt16OrDefault"),
+            "System.UInt32" => new TypedAccessor("UInt32", "GetUInt32OrDefault"),
+            "System.UInt64" => new TypedAccessor("UInt64", "GetUInt64OrDefault"),
+            "System.Single" => new TypedAccessor("Float", "GetFloatOrDefault"),
+            "System.Double" => new TypedAccessor("Double", "GetDoubleOrDefault"),
+            _ => null,
+        };
+    }
+
+    private static bool IsString(string typeFullName) => NormalizeType(typeFullName) == "System.String";
+
+    private static string NormalizeType(string typeFullName)
+    {
+        string type = typeFullName.StartsWith("global::", System.StringComparison.Ordinal)
+            ? typeFullName.Substring("global::".Length)
+            : typeFullName;
+
+        return type switch
+        {
+            "string" => "System.String",
+            "bool" => "System.Boolean",
+            "sbyte" => "System.SByte",
+            "short" => "System.Int16",
+            "int" => "System.Int32",
+            "long" => "System.Int64",
+            "byte" => "System.Byte",
+            "ushort" => "System.UInt16",
+            "uint" => "System.UInt32",
+            "ulong" => "System.UInt64",
+            "float" => "System.Single",
+            "double" => "System.Double",
+            _ => type,
+        };
+    }
+
     private static string MapMethodName(RowModel model) => "Map_" + Mangle(model);
 
     private static string MapAsyncMethodName(RowModel model) => "MapAsync_" + Mangle(model);
+
+    private static string CanUseTypedAccessorsMethodName(RowModel model) => "CanUseTypedAccessors_" + Mangle(model);
 
     private static string Mangle(RowModel model)
     {
@@ -151,4 +281,17 @@ internal static class Emitter
 
         return sb.ToString();
     }
+
+    private static string Mangle(string value)
+    {
+        var sb = new StringBuilder(value.Length);
+        foreach (char c in value)
+        {
+            sb.Append(char.IsLetterOrDigit(c) ? c : '_');
+        }
+
+        return sb.ToString();
+    }
+
+    private sealed record TypedAccessor(string DataType, string ReadMethod, bool IsString = false);
 }

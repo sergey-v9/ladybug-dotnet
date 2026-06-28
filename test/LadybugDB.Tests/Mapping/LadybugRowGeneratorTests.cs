@@ -108,6 +108,45 @@ public sealed class LadybugRowGeneratorTests
     }
 
     [Fact]
+    public void Emits_typed_tuple_fast_path_for_exact_primitive_rows()
+    {
+        (GeneratorRunResult run, var diagnostics) = GeneratorHarness.RunAndCompile(SimpleRecord);
+
+        Assert.Empty(run.Diagnostics);
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+
+        string generated = string.Concat(run.GeneratedSources.Select(s => s.SourceText.ToString()));
+        Assert.Contains("CanUseTypedAccessors_", generated);
+        Assert.Contains("result.GetNext()", generated);
+        Assert.Contains("__tuple.GetString", generated);
+        Assert.Contains("__tuple.GetInt64OrDefault", generated);
+        Assert.Contains("result.Rows()", generated); // fallback remains for conversion-heavy result shapes.
+    }
+
+    [Fact]
+    public void Keeps_materialized_fallback_only_for_unsupported_member_types()
+    {
+        const string complex = """
+            using LadybugDB;
+            namespace Demo
+            {
+                [LadybugRow]
+                public record Complex(System.Guid Id);
+            }
+            """;
+
+        (GeneratorRunResult run, var diagnostics) = GeneratorHarness.RunAndCompile(complex);
+
+        Assert.Empty(run.Diagnostics);
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+
+        string generated = string.Concat(run.GeneratedSources.Select(s => s.SourceText.ToString()));
+        Assert.DoesNotContain("CanUseTypedAccessors_", generated);
+        Assert.DoesNotContain("result.GetNext()", generated);
+        Assert.Contains("result.Rows()", generated);
+    }
+
+    [Fact]
     public void Reports_diagnostic_when_no_mappable_members()
     {
         const string empty = """

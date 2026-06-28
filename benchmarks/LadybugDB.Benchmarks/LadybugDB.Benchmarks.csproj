@@ -20,6 +20,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LadybugDB\LadybugDB.csproj" />
+    <ProjectReference Include="..\..\src\LadybugDB.SourceGen\LadybugDB.SourceGen.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- The bench needs the native lib to actually run; staged copy is best-effort. -->

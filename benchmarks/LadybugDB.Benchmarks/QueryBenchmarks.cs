@@ -4,6 +4,10 @@ using LadybugDB;
 
 namespace LadybugDB.Benchmarks;
 
+/// <summary>Source-generated row shape for measuring typed mapping.</summary>
+[LadybugRow]
+public sealed record BenchmarkPersonRow(string Name, long Age);
+
 /// <summary>
 /// Latency benchmarks over an in-memory database. Names here must match the names used by the
 /// baseline JSON consumed by the <c>--ci-gate</c> path (see <see cref="CiGate"/>).
@@ -53,6 +57,13 @@ public class QueryBenchmarks
     {
         using QueryResult r = _conn.Query("MATCH (p:Person) RETURN p.name, p.age");
         return r.Rows().Count();
+    }
+
+    [Benchmark]
+    public int MapRows()
+    {
+        using QueryResult r = _conn.Query("MATCH (p:Person) RETURN p.name AS Name, p.age AS Age");
+        return r.Map<BenchmarkPersonRow>().Count;
     }
 
     [Benchmark]

@@ -5,6 +5,11 @@
     "AllocatedBytes": 216176
   },
   {
+    "Name": "MapRows",
+    "MeanMs": 0.6174415771484375,
+    "AllocatedBytes": 121304
+  },
+  {
     "Name": "Prepare",
     "MeanMs": 0.1533294474283854,
     "AllocatedBytes": 48
