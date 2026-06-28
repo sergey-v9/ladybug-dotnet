@@ -468,6 +468,16 @@ public sealed class PreparedStatement : IDisposable
 
     private static IntPtr CreateMapValue(IEnumerable<KeyValuePair<object, object?>> entries)
     {
+        if (entries is ICollection<KeyValuePair<object, object?>> collection)
+        {
+            return CreateMapValue(entries, collection.Count);
+        }
+
+        if (entries is IReadOnlyCollection<KeyValuePair<object, object?>> readOnlyCollection)
+        {
+            return CreateMapValue(entries, readOnlyCollection.Count);
+        }
+
         var keyPtrs = new List<IntPtr>();
         var valuePtrs = new List<IntPtr>();
         try
@@ -503,6 +513,60 @@ public sealed class PreparedStatement : IDisposable
             foreach (IntPtr ptr in keyPtrs)
             {
                 Native.ValueDestroy(ptr);
+            }
+        }
+    }
+
+    private static IntPtr CreateMapValue(IEnumerable<KeyValuePair<object, object?>> entries, int count)
+    {
+        if (count == 0)
+        {
+            throw new NotSupportedException("Cannot bind an empty MAP parameter; the engine cannot infer its key/value types.");
+        }
+
+        var keys = new IntPtr[count];
+        var values = new IntPtr[count];
+        int allocated = 0;
+        try
+        {
+            foreach (KeyValuePair<object, object?> entry in entries)
+            {
+                if (allocated >= keys.Length)
+                {
+                    throw new InvalidOperationException("Collection changed while binding a MAP parameter.");
+                }
+
+                keys[allocated] = CreateNativeValue(entry.Key);
+                values[allocated] = CreateNativeValue(entry.Value);
+                allocated++;
+            }
+
+            if (allocated == 0)
+            {
+                throw new NotSupportedException("Cannot bind an empty MAP parameter; the engine cannot infer its key/value types.");
+            }
+
+            LbugState state = Native.ValueCreateMap((ulong)allocated, keys, values, out IntPtr mapHandle);
+            if (state != LbugState.Success || mapHandle == IntPtr.Zero)
+            {
+                throw new LadybugException("Failed to create a MAP parameter value.");
+            }
+
+            return mapHandle;
+        }
+        finally
+        {
+            for (int i = 0; i < allocated; i++)
+            {
+                if (values[i] != IntPtr.Zero)
+                {
+                    Native.ValueDestroy(values[i]);
+                }
+
+                if (keys[i] != IntPtr.Zero)
+                {
+                    Native.ValueDestroy(keys[i]);
+                }
             }
         }
     }

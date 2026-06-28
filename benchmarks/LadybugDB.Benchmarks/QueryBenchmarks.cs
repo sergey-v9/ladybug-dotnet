@@ -21,9 +21,11 @@ public class QueryBenchmarks
     private PreparedStatement _prepared = null!;
     private PreparedStatement _blobPrepared = null!;
     private PreparedStatement _structPrepared = null!;
+    private PreparedStatement _mapPrepared = null!;
     private PreparedStatement _listPrepared = null!;
     private byte[] _blob = null!;
     private Dictionary<string, object?> _struct = null!;
+    private Dictionary<object, object?> _map = null!;
     private List<float> _vector = null!;
 
     [GlobalSetup]
@@ -42,6 +44,7 @@ public class QueryBenchmarks
         _prepared = _conn.Prepare("MATCH (p:Person) WHERE p.age >= $a RETURN p.name");
         _blobPrepared = _conn.Prepare("RETURN CAST($b AS BLOB)");
         _structPrepared = _conn.Prepare("RETURN $s");
+        _mapPrepared = _conn.Prepare("RETURN $m");
         _listPrepared = _conn.Prepare("RETURN $v");
         _blob = new byte[512];
         for (int i = 0; i < _blob.Length; i++)
@@ -50,6 +53,18 @@ public class QueryBenchmarks
         }
 
         _struct = new Dictionary<string, object?>
+        {
+            ["name"] = "Alice",
+            ["age"] = 42L,
+            ["score"] = 12.5d,
+            ["active"] = true,
+            ["city"] = "Paris",
+            ["role"] = "admin",
+            ["label"] = "cafe",
+            ["notes"] = "ready"
+        };
+
+        _map = new Dictionary<object, object?>
         {
             ["name"] = "Alice",
             ["age"] = 42L,
@@ -72,6 +87,7 @@ public class QueryBenchmarks
     public void Cleanup()
     {
         _listPrepared.Dispose();
+        _mapPrepared.Dispose();
         _structPrepared.Dispose();
         _blobPrepared.Dispose();
         _prepared.Dispose();
@@ -120,6 +136,13 @@ public class QueryBenchmarks
     {
         _structPrepared.Bind("s", _struct);
         return _struct.Count;
+    }
+
+    [Benchmark]
+    public int BindMap()
+    {
+        _mapPrepared.BindMap("m", _map);
+        return _map.Count;
     }
 
     [Benchmark]
