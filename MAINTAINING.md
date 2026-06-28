@@ -79,6 +79,34 @@ On non-Windows shells:
 `Pack` downloads prebuilt native assets from `LadybugDB/ladybug` releases when they are not already staged
 under `lib/runtimes/<rid>/native/`, then verifies package contents.
 
+## Benchmark Baselines
+
+The BenchmarkDotNet project covers the result-reading hot path and is configured with
+`[MemoryDiagnoser]`. The committed baseline is:
+
+```text
+benchmarks/LadybugDB.Benchmarks/baselines/query-win-x64-net10.json
+```
+
+Capture a fresh local report with the staged native library:
+
+```powershell
+dotnet run --project benchmarks/LadybugDB.Benchmarks/LadybugDB.Benchmarks.csproj -c Release -- `
+  --filter "*QueryBenchmarks*" --job short --warmupCount 1 --iterationCount 3 --exporters json `
+  --artifacts artifacts/benchmarks
+```
+
+Run the CI gate against either compact baseline JSON or a BenchmarkDotNet `*-report-full*.json` file:
+
+```powershell
+dotnet run --project benchmarks/LadybugDB.Benchmarks/LadybugDB.Benchmarks.csproj -c Release -- `
+  --ci-gate benchmarks/LadybugDB.Benchmarks/baselines/query-win-x64-net10.json `
+  artifacts/benchmarks/results/LadybugDB.Benchmarks.QueryBenchmarks-report-full-compressed.json
+```
+
+`LADYBUG_BENCH_RATIO_MAX` controls the latency ratio ceiling; `LADYBUG_BENCH_ALLOC_RATIO_MAX` controls
+allocated bytes/op. Both default to `1.25`.
+
 ## Local Native Build
 
 When this repository is checked out as `tools/csharp_api` in the main `LadybugDB/ladybug` monorepo, the

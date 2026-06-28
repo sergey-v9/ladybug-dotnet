@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "Query",
+    "MeanMs": 0.7394308268229166,
+    "AllocatedBytes": 216176
+  },
+  {
+    "Name": "Prepare",
+    "MeanMs": 0.1533294474283854,
+    "AllocatedBytes": 48
+  },
+  {
+    "Name": "Execute",
+    "MeanMs": 0.485359228515625,
+    "AllocatedBytes": 72136
+  }
+]

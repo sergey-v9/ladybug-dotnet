@@ -10,8 +10,8 @@ namespace LadybugDB.Build.Tasks;
 /// <summary>
 /// Runs the benchmark project's <c>--ci-gate</c> over committed baseline/candidate JSON when both
 /// are present. Opt-in: only runs when BENCH_BASELINE and BENCH_CANDIDATE env vars point at files,
-/// so the default Test/Pack flow is unaffected. The latency ceiling comes from
-/// LADYBUG_BENCH_RATIO_MAX (read inside the benchmark process).
+/// so the default Test/Pack flow is unaffected. The latency/allocation ceilings come from
+/// LADYBUG_BENCH_RATIO_MAX and LADYBUG_BENCH_ALLOC_RATIO_MAX (read inside the benchmark process).
 /// </summary>
 [TaskName("BenchCiGate")]
 public sealed class BenchCiGateTask : FrostingTask<BuildContext>

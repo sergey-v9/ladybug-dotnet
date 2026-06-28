@@ -14,14 +14,14 @@ public sealed class CiGateTests
 {
     private static readonly LatencySample[] Baseline =
     {
-        new("Query", 10.0),
-        new("Prepare", 5.0),
+        new("Query", 10.0, 1_000),
+        new("Prepare", 5.0, 500),
     };
 
     [Fact]
     public void Within_ceiling_passes()
     {
-        var candidate = new[] { new LatencySample("Query", 11.0), new LatencySample("Prepare", 5.5) };
+        var candidate = new[] { new LatencySample("Query", 11.0, 1_100), new LatencySample("Prepare", 5.5, 500) };
         IReadOnlyList<GateResult> results = CiGate.Evaluate(Baseline, candidate, ceiling: 1.25);
         Assert.True(CiGate.AllPassed(results));
     }
@@ -29,7 +29,7 @@ public sealed class CiGateTests
     [Fact]
     public void Over_ceiling_fails_the_offending_benchmark()
     {
-        var candidate = new[] { new LatencySample("Query", 14.0), new LatencySample("Prepare", 5.0) };
+        var candidate = new[] { new LatencySample("Query", 14.0, 1_000), new LatencySample("Prepare", 5.0, 500) };
         IReadOnlyList<GateResult> results = CiGate.Evaluate(Baseline, candidate, ceiling: 1.25);
         Assert.False(CiGate.AllPassed(results));
         GateResult query = results.Single(r => r.Name == "Query");
@@ -38,9 +38,39 @@ public sealed class CiGateTests
     }
 
     [Fact]
+    public void Allocation_over_ceiling_fails_the_offending_benchmark()
+    {
+        var candidate = new[] { new LatencySample("Query", 10.0, 1_500), new LatencySample("Prepare", 5.0, 500) };
+        IReadOnlyList<GateResult> results = CiGate.Evaluate(
+            Baseline,
+            candidate,
+            ceiling: 1.25,
+            allocationCeiling: 1.25);
+
+        Assert.False(CiGate.AllPassed(results));
+        GateResult query = results.Single(r => r.Name == "Query");
+        Assert.False(query.Passed);
+        Assert.True(query.LatencyPassed);
+        Assert.False(query.AllocationPassed);
+        Assert.Equal(1.5, query.AllocationRatio);
+    }
+
+    [Fact]
+    public void Missing_allocation_data_only_gates_latency()
+    {
+        var baseline = new[] { new LatencySample("Query", 10.0, AllocatedBytes: null) };
+        var candidate = new[] { new LatencySample("Query", 11.0, 99_000) };
+        IReadOnlyList<GateResult> results = CiGate.Evaluate(baseline, candidate, ceiling: 1.25);
+
+        GateResult query = results.Single();
+        Assert.True(query.Passed);
+        Assert.Null(query.AllocationRatio);
+    }
+
+    [Fact]
     public void New_benchmark_without_baseline_passes()
     {
-        var candidate = new[] { new LatencySample("BrandNew", 99.0) };
+        var candidate = new[] { new LatencySample("BrandNew", 99.0, 99_000) };
         IReadOnlyList<GateResult> results = CiGate.Evaluate(Baseline, candidate, ceiling: 1.25);
         Assert.True(CiGate.AllPassed(results));
     }
@@ -69,5 +99,7 @@ public sealed class CiGateTests
         Assert.StartsWith("PASS Query:", pass.ToString());
         var fail = new GateResult("Query", 2.0, 1.25, Passed: false);
         Assert.StartsWith("FAIL Query:", fail.ToString());
+        var allocationFail = new GateResult("Query", 1.0, 1.25, true, 1.5, 1.25, false);
+        Assert.Contains("alloc ratio 1.5", allocationFail.ToString());
     }
 }
