@@ -119,8 +119,10 @@ public sealed class LadybugRowGeneratorTests
         string generated = string.Concat(run.GeneratedSources.Select(s => s.SourceText.ToString()));
         Assert.Contains("CanUseTypedAccessors_", generated);
         Assert.Contains("result.GetNext()", generated);
-        Assert.Contains("__tuple.GetString", generated);
-        Assert.Contains("__tuple.GetInt64OrDefault", generated);
+        Assert.Contains("int __NameIndex0 = __idx[\"Name\"]", generated);
+        Assert.Contains("int __AgeIndex1 = __idx[\"Age\"]", generated);
+        Assert.Contains("__tuple.GetString(__NameIndex0)", generated);
+        Assert.Contains("__tuple.GetInt64OrDefault(__AgeIndex1)", generated);
         Assert.Contains("result.Rows()", generated); // fallback remains for conversion-heavy result shapes.
     }
 

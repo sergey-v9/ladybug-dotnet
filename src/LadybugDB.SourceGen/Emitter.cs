@@ -82,6 +82,7 @@ internal static class Emitter
         {
             sb.AppendLine($"            if ({CanUseTypedAccessorsMethodName(model)}(result.Columns, __idx))");
             sb.AppendLine("            {");
+            EmitTypedAccessorIndexLocals(sb, model, indent: "                ");
             sb.AppendLine("                while (result.HasNext())");
             sb.AppendLine("                {");
             sb.AppendLine("                    using var __tuple = result.GetNext();");
@@ -107,6 +108,7 @@ internal static class Emitter
         {
             sb.AppendLine($"            if ({CanUseTypedAccessorsMethodName(model)}(result.Columns, __idx))");
             sb.AppendLine("            {");
+            EmitTypedAccessorIndexLocals(sb, model, indent: "                ");
             sb.AppendLine("                while (result.HasNext())");
             sb.AppendLine("                {");
             sb.AppendLine("                    ct.ThrowIfCancellationRequested();");
@@ -143,25 +145,36 @@ internal static class Emitter
         sb.AppendLine();
     }
 
-    private static string BuildConstruction(RowModel model, System.Func<RowMember, string> convert)
+    private static void EmitTypedAccessorIndexLocals(StringBuilder sb, RowModel model, string indent)
+    {
+        for (int i = 0; i < model.Members.Length; i++)
+        {
+            RowMember member = model.Members[i];
+            sb.AppendLine($"{indent}int {TypedIndexLocalName(member, i)} = __idx[\"{member.ColumnName}\"];");
+        }
+    }
+
+    private static string BuildConstruction(RowModel model, System.Func<RowMember, int, string> convert)
     {
         if (model.UsePositionalConstructor)
         {
             // Positional construction for records / declared ctors: ctor params in order.
             var ctorArgs = model.Members
-                .Where(m => m.Kind == MemberKind.ConstructorParameter)
-                .OrderBy(m => m.ConstructorOrdinal)
-                .Select(convert);
+                .Select((member, index) => (member, index))
+                .Where(x => x.member.Kind == MemberKind.ConstructorParameter)
+                .OrderBy(x => x.member.ConstructorOrdinal)
+                .Select(x => convert(x.member, x.index));
             return $"new {model.TypeFullName}({string.Join(", ", ctorArgs)})";
         }
 
         var inits = model.Members
-            .Where(m => m.Kind == MemberKind.SettableProperty)
-            .Select(m => $"{m.MemberName} = {convert(m)}");
+            .Select((member, index) => (member, index))
+            .Where(x => x.member.Kind == MemberKind.SettableProperty)
+            .Select(x => $"{x.member.MemberName} = {convert(x.member, x.index)}");
         return $"new {model.TypeFullName}() {{ {string.Join(", ", inits)} }}";
     }
 
-    private static string ConvertMaterializedRow(RowMember m)
+    private static string ConvertMaterializedRow(RowMember m, int index)
     {
         // Reflection-free conversion: index the row by the column ordinal, cast through the
         // binding's CLR result type. NULL flows through as default for the target type.
@@ -169,15 +182,18 @@ internal static class Emitter
         return $"global::LadybugDB.LadybugRowConvert.To<{m.TypeFullName}>({cell})";
     }
 
-    private static string ConvertTypedTuple(RowMember m)
+    private static string ConvertTypedTuple(RowMember m, int index)
     {
         TypedAccessor accessor = GetTypedAccessor(m)!;
-        string index = $"__idx[\"{m.ColumnName}\"]";
+        string ordinal = TypedIndexLocalName(m, index);
         string expression = accessor.IsString
-            ? $"__tuple.{accessor.ReadMethod}({index})"
-            : $"__tuple.{accessor.ReadMethod}({index})";
+            ? $"__tuple.{accessor.ReadMethod}({ordinal})"
+            : $"__tuple.{accessor.ReadMethod}({ordinal})";
         return accessor.IsString && !m.IsNullable ? expression + "!" : expression;
     }
+
+    private static string TypedIndexLocalName(RowMember member, int index)
+        => $"__{Mangle(member.ColumnName)}Index{index.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
     private static void EmitTypedAccessorGuard(StringBuilder sb, RowModel model)
     {
