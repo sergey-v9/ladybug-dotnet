@@ -14,8 +14,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Xunit.SkippableFact" Version="1.5.61" />
-    <!-- Apache.Arrow for the RecordBatch round-trip tests; version pinned by WS-K
-         (docs/parity-2026-06/K-ns20-feasibility.md). -->
+    <!-- Apache.Arrow for the RecordBatch round-trip tests; version kept in lockstep
+         with the LadybugDB.Arrow package. -->
     <PackageReference Include="Apache.Arrow" Version="18.0.0" />
   </ItemGroup>
 

@@ -24,8 +24,7 @@
     <InternalsVisibleTo Include="LadybugDB.Tests.Extensions" />
   </ItemGroup>
 
-  <!-- Versions aligned with WS-K's central pin (docs/parity-2026-06/K-ns20-feasibility.md):
-       all of these ship a verified netstandard2.0 asset, so no #if gate is needed. -->
+  <!-- All of these ship a verified netstandard2.0 asset, so no #if gate is needed. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.0" />

@@ -1,9 +1,9 @@
 # Feedback: Graphiti's use of the FTS / VECTOR engine extensions
 
 From the Graphiti C# port (a downstream consumer of this binding). Dated 2026-06-14.
-Companion to `GRAPHITI_PARAMETER_BINDING_REQUEST.md` (which you already resolved — thank you;
+Follows the earlier parameter-binding request, which you already resolved — thank you;
 `List<string>`, arrays, empty lists, `List<float>`, and nulls all bind correctly now and Graphiti
-dropped its statement-literalization workaround).
+dropped its statement-literalization workaround.
 
 This note is **not a bug report**. It records exactly which engine features Graphiti's search path
 depends on, so the in-flight parity/extensions work (`feature/parity-extensions-2026-06`, spec

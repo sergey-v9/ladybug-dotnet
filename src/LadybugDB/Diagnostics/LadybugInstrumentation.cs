@@ -1,5 +1,5 @@
 // Instrumentation seam around query execution (see docs/parity-2026-06/04-coordination-decisions.md
-// §D4/§D5 and 03-high-level-plan.md §4.6).
+// §D4/§D5 and the OpenTelemetry section of docs/superpowers/specs/2026-06-14-csharp-parity-extensions-design.md).
 //
 // WS-B's synchronous query/execute path wraps execution in:
 //     using var scope = LadybugInstrumentation.StartQuery(cypher);

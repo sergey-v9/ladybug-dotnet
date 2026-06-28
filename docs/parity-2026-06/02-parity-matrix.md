@@ -1,5 +1,9 @@
 # Feature Parity Matrix (2026-06)
 
+> **Status (historical):** This is the *pre-implementation* parity analysis. Every gap the
+> **Ours** column marks below (❌/🟡) has since **shipped** in the parity/extensions work — do
+> not read the **Ours** column as the current state of the binding.
+
 Legend: ✅ yes · 🟡 partial · ❌ no. Columns: **Ours** = `tools/csharp_api` ·
 **Ref** = `reference/ladybug.net` · Py/Java/Node/Rust = official sibling bindings.
 Derived from the 7-agent analysis. The **C API** column marks whether the capability

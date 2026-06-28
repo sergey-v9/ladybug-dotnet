@@ -20,15 +20,13 @@
 
   <ItemGroup>
     <!-- ActivitySource + System.Diagnostics.Metrics (Meter/Counter/Histogram) for netstandard2.0;
-         in-box on net10.0 but pinned here so both TFMs use the same API surface. Version aligned
-         with WS-K's central pin (docs/parity-2026-06/K-ns20-feasibility.md). -->
+         in-box on net10.0 but pinned here so both TFMs use the same API surface. -->
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <!-- IAsyncEnumerable<T> + [EnumeratorCancellation] for the WS-D async surface on ns2.0; these
-         types are in-box on net10.0. Version aligned with WS-K's central pin
-         (docs/parity-2026-06/K-ns20-feasibility.md). -->
+    <!-- IAsyncEnumerable<T> + [EnumeratorCancellation] for the async surface on ns2.0; these
+         types are in-box on net10.0. -->
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
   </ItemGroup>
 

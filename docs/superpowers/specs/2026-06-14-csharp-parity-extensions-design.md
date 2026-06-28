@@ -4,9 +4,8 @@ Status: **approved** (2026-06-14). Scope decided with the user: **P0–P3 ("ever
 **both** meanings of extensions, **full async**, **split packaging** with all packages
 targeting **`net10.0;netstandard2.0`** (match core).
 
-Companion analysis: [`../../parity-2026-06/01-situation-analysis.md`](../../parity-2026-06/01-situation-analysis.md),
-[`../../parity-2026-06/02-parity-matrix.md`](../../parity-2026-06/02-parity-matrix.md).
-Plans: [`../../parity-2026-06/03-high-level-plan.md`](../../parity-2026-06/03-high-level-plan.md) + `plan-<WS>.md`.
+Companion analysis: [`../../parity-2026-06/02-parity-matrix.md`](../../parity-2026-06/02-parity-matrix.md)
+(the pre-implementation parity matrix; its gaps have since shipped).
 
 ## 1. Goal
 
@@ -120,7 +119,7 @@ decision, not a default.
 
 ## 6. Workstreams (decomposed by file ownership to keep parallel agents conflict-free)
 
-Phase/owner detail and dependencies are in `03-high-level-plan.md`. IDs:
+The workstreams below were the original parallel-build decomposition (now all shipped). IDs:
 
 | WS | Title | Primary files owned |
 |---|---|---|

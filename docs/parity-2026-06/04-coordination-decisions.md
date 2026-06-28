@@ -1,8 +1,7 @@
 # Coordination Decisions (authoritative addendum)
 
-> Resolutions to the cross-workstream open questions raised by the 12 detailed plans.
-> **This document overrides any conflicting detail in `plan-*.md` or `03-high-level-plan.md`.**
-> Implementation agents MUST follow these decisions.
+> Resolutions to the cross-workstream open questions raised during the parity/extensions build.
+> These decisions are authoritative and were followed by the implementation.
 
 ## D1 — Native engine target is **v0.17.1**, not 0.17.2
 
@@ -13,7 +12,7 @@ published release with all five RID natives is **`v0.17.1`** (verified: `liblbug
 `liblbug-windows-x86_64.zip` all present).
 
 - **`version.txt` → `0.17.1.0`** (engine `v0.17.1`, binding revision `.0`).
-- Wherever `plan-K`, `plan-J`, `plan-L`, or `03` say "0.17.2", read **"0.17.1"**.
+- The engine target is **`v0.17.1`**, not the unpublished `0.17.2` floated during early planning.
 - The C API is verified byte-identical across `v0.17.0 → v0.17.1 → origin/main` for
   `src/include/c_api/`, so this is a native-binary refresh with **no interop change**.
 - `parity-tracking.md` (WS-J) pins upstream tag **`v0.17.1`**.

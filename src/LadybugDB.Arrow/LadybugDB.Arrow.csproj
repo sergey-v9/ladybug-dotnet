@@ -17,8 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Apache.Arrow ships a netstandard2.0 asset; version pinned by WS-K
-         (docs/parity-2026-06/K-ns20-feasibility.md). -->
+    <!-- Apache.Arrow ships a verified netstandard2.0 asset; no #if gate needed. -->
     <PackageReference Include="Apache.Arrow" Version="18.0.0" />
   </ItemGroup>
 
