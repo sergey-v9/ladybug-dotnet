@@ -217,20 +217,25 @@ public sealed partial class QueryResult : IDisposable
     public IEnumerable<object?[]> Rows()
     {
         ThrowIfDisposed();
-        int columns = checked((int)ColumnCount);
+        if (!HasNext())
+        {
+            yield break;
+        }
 
-        while (HasNext())
+        IReadOnlyList<ColumnSchema> schemas = Columns;
+        int columns = schemas.Count;
+        do
         {
             using FlatTuple tuple = GetNext();
             var row = new object?[columns];
             for (int i = 0; i < columns; i++)
             {
-                using Value value = tuple.GetValue((ulong)i);
-                row[i] = value.GetValue();
+                row[i] = ReadCell(tuple, i, schemas[i].Type.Id);
             }
 
             yield return row;
         }
+        while (HasNext());
     }
 
     /// <inheritdoc />
@@ -267,6 +272,43 @@ public sealed partial class QueryResult : IDisposable
 
     /// <summary>Delegate that operates on the native query-result handle.</summary>
     internal delegate T HandleFunc<T>(ref Interop.LbugQueryResult handle);
+
+    private static object? ReadCell(FlatTuple tuple, int index, DataTypeId typeId)
+    {
+        switch (typeId)
+        {
+            case DataTypeId.Bool:
+                return tuple.TryGetBool(index, out bool boolValue) ? boolValue : null;
+            case DataTypeId.Int8:
+                return tuple.TryGetInt8(index, out sbyte int8Value) ? int8Value : null;
+            case DataTypeId.Int16:
+                return tuple.TryGetInt16(index, out short int16Value) ? int16Value : null;
+            case DataTypeId.Int32:
+                return tuple.TryGetInt32(index, out int int32Value) ? int32Value : null;
+            case DataTypeId.Int64:
+            case DataTypeId.Serial:
+                return tuple.TryGetInt64(index, out long int64Value) ? int64Value : null;
+            case DataTypeId.UInt8:
+                return tuple.TryGetUInt8(index, out byte uint8Value) ? uint8Value : null;
+            case DataTypeId.UInt16:
+                return tuple.TryGetUInt16(index, out ushort uint16Value) ? uint16Value : null;
+            case DataTypeId.UInt32:
+                return tuple.TryGetUInt32(index, out uint uint32Value) ? uint32Value : null;
+            case DataTypeId.UInt64:
+                return tuple.TryGetUInt64(index, out ulong uint64Value) ? uint64Value : null;
+            case DataTypeId.Float:
+                return tuple.TryGetFloat(index, out float floatValue) ? floatValue : null;
+            case DataTypeId.Double:
+                return tuple.TryGetDouble(index, out double doubleValue) ? doubleValue : null;
+            case DataTypeId.String:
+                return tuple.GetString(index);
+            default:
+                using (Value value = tuple.GetValue(index))
+                {
+                    return value.GetValue();
+                }
+        }
+    }
 
     private void ThrowIfDisposed()
     {

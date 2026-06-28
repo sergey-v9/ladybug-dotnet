@@ -61,6 +61,33 @@ public sealed class TypeMappingTests
     }
 
     [SkippableFact]
+    public void Scalar_null_columns_map_to_null()
+    {
+        Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");
+
+        string dbPath = TestEnvironment.NewTempDbPath();
+        try
+        {
+            using var db = new Database(dbPath);
+            using var conn = new Connection(db);
+
+            conn.Query("CREATE NODE TABLE T(id INT64, name STRING, age INT64, flag BOOL, PRIMARY KEY(id))").Dispose();
+            conn.Query("CREATE (:T {id: 1})").Dispose();
+
+            using QueryResult result = conn.Query("MATCH (t:T) RETURN t.name, t.age, t.flag");
+            object?[] row = result.Rows().Single();
+
+            Assert.Null(row[0]);
+            Assert.Null(row[1]);
+            Assert.Null(row[2]);
+        }
+        finally
+        {
+            TestEnvironment.TryDelete(dbPath);
+        }
+    }
+
+    [SkippableFact]
     public void List_literal_maps_to_object_array()
     {
         Skip.IfNot(TestEnvironment.NativeAvailable, "Native Ladybug library is not available.");

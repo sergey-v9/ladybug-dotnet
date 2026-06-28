@@ -1,8 +1,8 @@
 [
   {
     "Name": "Query",
-    "MeanMs": 0.7394308268229166,
-    "AllocatedBytes": 216176
+    "MeanMs": 0.6241534356011285,
+    "AllocatedBytes": 136456
   },
   {
     "Name": "MapRows",
@@ -16,8 +16,8 @@
   },
   {
     "Name": "Execute",
-    "MeanMs": 0.485359228515625,
-    "AllocatedBytes": 72136
+    "MeanMs": 0.4604050712890625,
+    "AllocatedBytes": 52296
   },
   {
     "Name": "BindBlob",
