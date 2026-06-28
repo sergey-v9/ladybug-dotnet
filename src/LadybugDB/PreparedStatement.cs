@@ -387,8 +387,12 @@ public sealed class PreparedStatement : IDisposable
         byte* fieldNameBuffer,
         int fieldNameBufferLength)
     {
-        var names = new IntPtr[fields.Count];
-        var values = new IntPtr[fields.Count];
+        int count = fields.Count;
+        // ValueCreateStruct reads only the first 'count' entries, so a larger pooled backing array is
+        // fine. Both arrays are returned in the finally; names point into the caller's UTF-8 buffer and
+        // are not separately owned, so only the value handles are destroyed.
+        IntPtr[] names = ArrayPool<IntPtr>.Shared.Rent(count);
+        IntPtr[] values = ArrayPool<IntPtr>.Shared.Rent(count);
         int allocated = 0;
         int fieldNameOffset = 0;
         try
@@ -417,6 +421,9 @@ public sealed class PreparedStatement : IDisposable
                     Native.ValueDestroy(values[i]);
                 }
             }
+
+            ArrayPool<IntPtr>.Shared.Return(values);
+            ArrayPool<IntPtr>.Shared.Return(names);
         }
     }
 
@@ -466,8 +473,13 @@ public sealed class PreparedStatement : IDisposable
             return CreateMapValue(entries, readOnlyCollection.Count);
         }
 
+        // The entry count is unknown up front, so the value handles are collected into Lists. The
+        // staging arrays handed to the native call, however, come from the pool instead of ToArray():
+        // ValueCreateMap reads only the first 'count' elements, so a larger pooled backing array works.
         var keyPtrs = new List<IntPtr>();
         var valuePtrs = new List<IntPtr>();
+        IntPtr[]? keys = null;
+        IntPtr[]? values = null;
         try
         {
             foreach (KeyValuePair<object, object?> entry in entries)
@@ -481,9 +493,12 @@ public sealed class PreparedStatement : IDisposable
                 throw new NotSupportedException("Cannot bind an empty MAP parameter; the engine cannot infer its key/value types.");
             }
 
-            IntPtr[] keys = keyPtrs.ToArray();
-            IntPtr[] values = valuePtrs.ToArray();
-            LbugState state = Native.ValueCreateMap((ulong)keys.Length, keys, values, out IntPtr mapHandle);
+            int count = keyPtrs.Count;
+            keys = ArrayPool<IntPtr>.Shared.Rent(count);
+            values = ArrayPool<IntPtr>.Shared.Rent(count);
+            keyPtrs.CopyTo(keys);
+            valuePtrs.CopyTo(values);
+            LbugState state = Native.ValueCreateMap((ulong)count, keys, values, out IntPtr mapHandle);
             if (state != LbugState.Success || mapHandle == IntPtr.Zero)
             {
                 throw new LadybugException("Failed to create a MAP parameter value.");
@@ -493,6 +508,16 @@ public sealed class PreparedStatement : IDisposable
         }
         finally
         {
+            if (values is not null)
+            {
+                ArrayPool<IntPtr>.Shared.Return(values);
+            }
+
+            if (keys is not null)
+            {
+                ArrayPool<IntPtr>.Shared.Return(keys);
+            }
+
             foreach (IntPtr ptr in valuePtrs)
             {
                 Native.ValueDestroy(ptr);
@@ -512,8 +537,11 @@ public sealed class PreparedStatement : IDisposable
             throw new NotSupportedException("Cannot bind an empty MAP parameter; the engine cannot infer its key/value types.");
         }
 
-        var keys = new IntPtr[count];
-        var values = new IntPtr[count];
+        // ValueCreateMap reads only the first 'allocated' entries, so larger pooled backing arrays are
+        // fine. The 'allocated >= keys.Length' guard against a mutated collection still holds because
+        // the rented length is >= count.
+        IntPtr[] keys = ArrayPool<IntPtr>.Shared.Rent(count);
+        IntPtr[] values = ArrayPool<IntPtr>.Shared.Rent(count);
         int allocated = 0;
         try
         {
@@ -556,6 +584,9 @@ public sealed class PreparedStatement : IDisposable
                     Native.ValueDestroy(keys[i]);
                 }
             }
+
+            ArrayPool<IntPtr>.Shared.Return(values);
+            ArrayPool<IntPtr>.Shared.Return(keys);
         }
     }
 
@@ -566,7 +597,11 @@ public sealed class PreparedStatement : IDisposable
             return CreateNativeList(values, collection.Count);
         }
 
+        // The element count is unknown up front, so the handles are collected into a List. The staging
+        // array handed to the native call comes from the pool instead of ToArray(): ValueCreateList
+        // reads only the first 'count' elements, so a larger pooled backing array works.
         var elementHandles = new List<IntPtr>();
+        IntPtr[]? elements = null;
         try
         {
             foreach (object? value in values)
@@ -579,8 +614,10 @@ public sealed class PreparedStatement : IDisposable
                 return CreateNativeEmptyList(values.GetType());
             }
 
-            IntPtr[] elements = elementHandles.ToArray();
-            LbugState state = Native.ValueCreateList((ulong)elements.Length, elements, out IntPtr listHandle);
+            int count = elementHandles.Count;
+            elements = ArrayPool<IntPtr>.Shared.Rent(count);
+            elementHandles.CopyTo(elements);
+            LbugState state = Native.ValueCreateList((ulong)count, elements, out IntPtr listHandle);
             if (state != LbugState.Success || listHandle == IntPtr.Zero)
             {
                 throw new LadybugException("Failed to create a LIST parameter value.");
@@ -590,6 +627,11 @@ public sealed class PreparedStatement : IDisposable
         }
         finally
         {
+            if (elements is not null)
+            {
+                ArrayPool<IntPtr>.Shared.Return(elements);
+            }
+
             foreach (IntPtr handle in elementHandles)
             {
                 Native.ValueDestroy(handle);
@@ -599,7 +641,9 @@ public sealed class PreparedStatement : IDisposable
 
     private static IntPtr CreateNativeList(IEnumerable values, int count)
     {
-        var elements = new IntPtr[count];
+        // ValueCreateList reads only the first 'allocated' elements, so a larger pooled backing array is
+        // fine; the 'allocated >= elements.Length' mutation guard still holds since rented length >= count.
+        IntPtr[] elements = ArrayPool<IntPtr>.Shared.Rent(count);
         int allocated = 0;
         try
         {
@@ -633,6 +677,8 @@ public sealed class PreparedStatement : IDisposable
             {
                 Native.ValueDestroy(elements[i]);
             }
+
+            ArrayPool<IntPtr>.Shared.Return(elements);
         }
     }
 
