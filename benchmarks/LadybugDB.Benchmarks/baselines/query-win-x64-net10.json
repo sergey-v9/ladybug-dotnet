@@ -26,7 +26,7 @@
   },
   {
     "Name": "BindStruct",
-    "MeanMs": 0.007474376220703125,
+    "MeanMs": 0.004879621823628743,
     "AllocatedBytes": 232
   },
   {

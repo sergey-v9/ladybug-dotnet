@@ -1,9 +1,9 @@
 using System;
 using System.Collections;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using LadybugDB.Interop;
@@ -17,6 +17,8 @@ namespace LadybugDB;
 /// </summary>
 public sealed class PreparedStatement : IDisposable
 {
+    private const int StackallocStructFieldNameBytes = 1024;
+
     private static readonly long UnixEpochTicks = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).Ticks;
 
     private readonly Connection _connection;
@@ -364,18 +366,50 @@ public sealed class PreparedStatement : IDisposable
     private static char ToUpperHex(int value) =>
         (char)(value < 10 ? '0' + value : 'A' + value - 10);
 
-    private static IntPtr CreateStructValue(IReadOnlyDictionary<string, object?> fields)
+    private static unsafe IntPtr CreateStructValue(IReadOnlyDictionary<string, object?> fields)
+    {
+        int fieldNameBytes = CountStructFieldNameBytes(fields);
+        if (fieldNameBytes == 0)
+        {
+            return CreateStructValue(fields, null, 0);
+        }
+
+        if (fieldNameBytes <= StackallocStructFieldNameBytes)
+        {
+            byte* fieldNameBuffer = stackalloc byte[fieldNameBytes];
+            return CreateStructValue(fields, fieldNameBuffer, fieldNameBytes);
+        }
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(fieldNameBytes);
+        try
+        {
+            fixed (byte* fieldNameBuffer = rented)
+            {
+                return CreateStructValue(fields, fieldNameBuffer, fieldNameBytes);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    private static unsafe IntPtr CreateStructValue(
+        IReadOnlyDictionary<string, object?> fields,
+        byte* fieldNameBuffer,
+        int fieldNameBufferLength)
     {
         var names = new IntPtr[fields.Count];
         var values = new IntPtr[fields.Count];
         int allocated = 0;
+        int fieldNameOffset = 0;
         try
         {
             foreach (KeyValuePair<string, object?> field in fields)
             {
-                names[allocated] = Utf8ToCoTaskMem(field.Key);
+                names[allocated] = WriteStructFieldName(field.Key, fieldNameBuffer, fieldNameBufferLength, ref fieldNameOffset);
+                values[allocated] = CreateNativeValue(field.Value);
                 allocated++;
-                values[allocated - 1] = CreateNativeValue(field.Value);
             }
 
             LbugState state = Native.ValueCreateStruct((ulong)allocated, names, values, out IntPtr structHandle);
@@ -394,43 +428,42 @@ public sealed class PreparedStatement : IDisposable
                 {
                     Native.ValueDestroy(values[i]);
                 }
-
-                if (names[i] != IntPtr.Zero)
-                {
-                    Marshal.FreeCoTaskMem(names[i]);
-                }
             }
         }
     }
 
-    // Allocates a NUL-terminated UTF-8 copy of the string in unmanaged memory (CoTaskMem), portable
-    // across both target frameworks (Marshal.StringToCoTaskMemUTF8 is unavailable on ns2.0). Free
-    // with Marshal.FreeCoTaskMem.
-    private static unsafe IntPtr Utf8ToCoTaskMem(string value)
+    private static int CountStructFieldNameBytes(IReadOnlyDictionary<string, object?> fields)
     {
-        if (value is null)
+        int byteCount = 0;
+        foreach (KeyValuePair<string, object?> field in fields)
         {
-            throw new ArgumentNullException(nameof(value));
+            byteCount = checked(byteCount + Encoding.UTF8.GetByteCount(field.Key) + 1);
         }
 
+        return byteCount;
+    }
+
+    private static unsafe IntPtr WriteStructFieldName(
+        string value,
+        byte* fieldNameBuffer,
+        int fieldNameBufferLength,
+        ref int offset)
+    {
         int byteCount = Encoding.UTF8.GetByteCount(value);
-        IntPtr buffer = Marshal.AllocCoTaskMem(byteCount + 1);
-        try
+        int start = offset;
+        offset = checked(offset + byteCount + 1);
+        if (offset > fieldNameBufferLength)
         {
-            fixed (char* chars = value)
-            {
-                Encoding.UTF8.GetBytes(chars, value.Length, (byte*)buffer, byteCount);
-            }
-
-            Marshal.WriteByte(buffer, byteCount, 0);
-        }
-        catch
-        {
-            Marshal.FreeCoTaskMem(buffer);
-            throw;
+            throw new InvalidOperationException("STRUCT field-name UTF-8 buffer was undersized.");
         }
 
-        return buffer;
+        fixed (char* chars = value)
+        {
+            Encoding.UTF8.GetBytes(chars, value.Length, fieldNameBuffer + start, byteCount);
+        }
+
+        fieldNameBuffer[start + byteCount] = 0;
+        return (IntPtr)(fieldNameBuffer + start);
     }
 
     private static IntPtr CreateMapValue(IEnumerable<KeyValuePair<object, object?>> entries)
