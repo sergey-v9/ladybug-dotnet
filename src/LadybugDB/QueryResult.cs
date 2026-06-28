@@ -260,12 +260,18 @@ public sealed partial class QueryResult : IDisposable
         Native.QueryResultDestroy(ref _handle);
     }
 
+    // Boxing 'true'/'false' fresh per cell allocates a new object every time; a BOOL-heavy result set
+    // would churn the heap with two interchangeable values. Reuse two pre-boxed singletons instead —
+    // the boxed value is immutable, so sharing it is safe.
+    private static readonly object BoxedTrue = true;
+    private static readonly object BoxedFalse = false;
+
     private static object? ReadCell(FlatTuple tuple, int index, DataTypeId typeId)
     {
         switch (typeId)
         {
             case DataTypeId.Bool:
-                return tuple.TryGetBool(index, out bool boolValue) ? boolValue : null;
+                return tuple.TryGetBool(index, out bool boolValue) ? (boolValue ? BoxedTrue : BoxedFalse) : null;
             case DataTypeId.Int8:
                 return tuple.TryGetInt8(index, out sbyte int8Value) ? int8Value : null;
             case DataTypeId.Int16:

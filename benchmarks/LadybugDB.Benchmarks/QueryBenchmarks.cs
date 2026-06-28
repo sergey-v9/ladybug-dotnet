@@ -33,11 +33,11 @@ public class QueryBenchmarks
     {
         _db = new Database(":memory:");
         _conn = new Connection(_db);
-        _conn.Query("CREATE NODE TABLE Person(name STRING, age INT64, PRIMARY KEY(name))").Dispose();
+        _conn.Query("CREATE NODE TABLE Person(name STRING, age INT64, active BOOL, PRIMARY KEY(name))").Dispose();
         for (int i = 0; i < 1000; i++)
         {
-            using PreparedStatement ins = _conn.Prepare("CREATE (:Person {name: $n, age: $a})");
-            ins.Bind("n", "p" + i).Bind("a", (long)i);
+            using PreparedStatement ins = _conn.Prepare("CREATE (:Person {name: $n, age: $a, active: $b})");
+            ins.Bind("n", "p" + i).Bind("a", (long)i).Bind("b", (i & 1) == 0);
             ins.Execute().Dispose();
         }
 
@@ -99,6 +99,14 @@ public class QueryBenchmarks
     public int Query()
     {
         using QueryResult r = _conn.Query("MATCH (p:Person) RETURN p.name, p.age");
+        return r.Rows().Count();
+    }
+
+    [Benchmark]
+    public int BoolQuery()
+    {
+        // Reads 1000 BOOL cells per op; exercises the boxed-bool fast path in QueryResult.ReadCell.
+        using QueryResult r = _conn.Query("MATCH (p:Person) RETURN p.active");
         return r.Rows().Count();
     }
 
