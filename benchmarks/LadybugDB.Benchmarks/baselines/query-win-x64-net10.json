@@ -5,6 +5,11 @@
     "AllocatedBytes": 136456
   },
   {
+    "Name": "BoolQuery",
+    "MeanMs": 0.445,
+    "AllocatedBytes": 72336
+  },
+  {
     "Name": "MapRows",
     "MeanMs": 0.534398372395833,
     "AllocatedBytes": 112760
@@ -27,16 +32,16 @@
   {
     "Name": "BindStruct",
     "MeanMs": 0.004879621823628743,
-    "AllocatedBytes": 232
+    "AllocatedBytes": 56
   },
   {
     "Name": "BindMap",
     "MeanMs": 0.014691727498372397,
-    "AllocatedBytes": 232
+    "AllocatedBytes": 56
   },
   {
     "Name": "BindList",
     "MeanMs": 0.03075647147042411,
-    "AllocatedBytes": 4160
+    "AllocatedBytes": 3112
   }
 ]
