@@ -476,6 +476,11 @@ public sealed class PreparedStatement : IDisposable
 
     private static IntPtr CreateNativeList(IEnumerable values)
     {
+        if (values is ICollection collection)
+        {
+            return CreateNativeList(values, collection.Count);
+        }
+
         var elementHandles = new List<IntPtr>();
         try
         {
@@ -503,6 +508,45 @@ public sealed class PreparedStatement : IDisposable
             foreach (IntPtr handle in elementHandles)
             {
                 Native.ValueDestroy(handle);
+            }
+        }
+    }
+
+    private static IntPtr CreateNativeList(IEnumerable values, int count)
+    {
+        var elements = new IntPtr[count];
+        int allocated = 0;
+        try
+        {
+            foreach (object? value in values)
+            {
+                if (allocated >= elements.Length)
+                {
+                    throw new InvalidOperationException("Collection changed while binding a LIST parameter.");
+                }
+
+                elements[allocated] = CreateNativeValue(value);
+                allocated++;
+            }
+
+            if (allocated == 0)
+            {
+                return CreateNativeEmptyList(values.GetType());
+            }
+
+            LbugState state = Native.ValueCreateList((ulong)allocated, elements, out IntPtr listHandle);
+            if (state != LbugState.Success || listHandle == IntPtr.Zero)
+            {
+                throw new LadybugException("Failed to create a LIST parameter value.");
+            }
+
+            return listHandle;
+        }
+        finally
+        {
+            for (int i = 0; i < allocated; i++)
+            {
+                Native.ValueDestroy(elements[i]);
             }
         }
     }

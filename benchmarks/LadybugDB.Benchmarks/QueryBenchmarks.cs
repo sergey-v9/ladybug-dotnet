@@ -21,8 +21,10 @@ public class QueryBenchmarks
     private PreparedStatement _prepared = null!;
     private PreparedStatement _blobPrepared = null!;
     private PreparedStatement _structPrepared = null!;
+    private PreparedStatement _listPrepared = null!;
     private byte[] _blob = null!;
     private Dictionary<string, object?> _struct = null!;
+    private List<float> _vector = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -40,6 +42,7 @@ public class QueryBenchmarks
         _prepared = _conn.Prepare("MATCH (p:Person) WHERE p.age >= $a RETURN p.name");
         _blobPrepared = _conn.Prepare("RETURN CAST($b AS BLOB)");
         _structPrepared = _conn.Prepare("RETURN $s");
+        _listPrepared = _conn.Prepare("RETURN $v");
         _blob = new byte[512];
         for (int i = 0; i < _blob.Length; i++)
         {
@@ -57,11 +60,18 @@ public class QueryBenchmarks
             ["label"] = "cafe",
             ["notes"] = "ready"
         };
+
+        _vector = new List<float>(128);
+        for (int i = 0; i < 128; i++)
+        {
+            _vector.Add(i / 128f);
+        }
     }
 
     [GlobalCleanup]
     public void Cleanup()
     {
+        _listPrepared.Dispose();
         _structPrepared.Dispose();
         _blobPrepared.Dispose();
         _prepared.Dispose();
@@ -110,5 +120,12 @@ public class QueryBenchmarks
     {
         _structPrepared.Bind("s", _struct);
         return _struct.Count;
+    }
+
+    [Benchmark]
+    public int BindList()
+    {
+        _listPrepared.Bind("v", _vector);
+        return _vector.Count;
     }
 }
