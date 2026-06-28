@@ -181,6 +181,23 @@ Fork packages must stamp the fork repository URL so GitHub Packages associates t
 
 When `--repository-url` is omitted, the Cake pipeline keeps the upstream repository metadata.
 
+The same workflow restores the just-published prerelease from `https://nuget.pkg.github.com/sergey-v9/index.json`
+into a fresh consumer project on every shipped RID. The restore uses the account-scoped source name
+`github_ladybug` and keeps credentials out of `NuGet.config`:
+
+```yaml
+permissions:
+  contents: read
+  packages: read
+
+env:
+  NuGetPackageSourceCredentials_github_ladybug: "Username=sergey-v9;Password=${{ secrets.GITHUB_TOKEN }};ValidAuthenticationTypes=Basic"
+```
+
+For an external Actions consumer such as `sergey-v9/Graphiti.Core`, grant that repository Actions read
+access in GitHub Packages settings for each package it restores: `LadybugDB`, `LadybugDB.Native`, and
+any `LadybugDB.Native.<rid>` package restored directly or transitively.
+
 ## ABI Update Checklist
 
 The binding mirrors the C API in `LadybugDB/ladybug` exactly. ABI mistakes can compile cleanly and still

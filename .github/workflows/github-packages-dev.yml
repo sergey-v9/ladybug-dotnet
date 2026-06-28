@@ -16,6 +16,8 @@ jobs:
   publish:
     if: github.repository == 'sergey-v9/ladybug-dotnet' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
+    outputs:
+      package-version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v6
 
@@ -83,3 +85,225 @@ jobs:
           --api-key "${{ secrets.GITHUB_TOKEN }}"
           --skip-duplicate
           --no-symbols
+
+  consume-published:
+    if: github.repository == 'sergey-v9/ladybug-dotnet' && github.ref == 'refs/heads/dev'
+    needs: publish
+    name: consume published (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-15-intel
+            rid: osx-x64
+          - os: macos-latest
+            rid: osx-arm64
+    env:
+      PACKAGE_VERSION: ${{ needs.publish.outputs.package-version }}
+      RID: ${{ matrix.rid }}
+      NuGetPackageSourceCredentials_github_ladybug: "Username=sergey-v9;Password=${{ secrets.GITHUB_TOKEN }};ValidAuthenticationTypes=Basic"
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore and run published package consumer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $work = Join-Path $env:RUNNER_TEMP "ladybug-published-consumer"
+          if (Test-Path $work) {
+            Remove-Item -LiteralPath $work -Recurse -Force
+          }
+
+          dotnet new console --framework net10.0 --name LadybugPublishedConsumer --output $work
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $project = Join-Path $work "LadybugPublishedConsumer.csproj"
+          $config = Join-Path $work "NuGet.config"
+          $program = Join-Path $work "Program.cs"
+
+          @"
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+              <RuntimeIdentifier>$($env:RID)</RuntimeIdentifier>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="LadybugDB" Version="$($env:PACKAGE_VERSION)" />
+              <PackageReference Include="LadybugDB.Native.$($env:RID)" Version="$($env:PACKAGE_VERSION)" />
+            </ItemGroup>
+          </Project>
+          "@ | Set-Content -LiteralPath $project
+
+          @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+              <add key="github_ladybug" value="https://nuget.pkg.github.com/sergey-v9/index.json" />
+            </packageSources>
+          </configuration>
+          '@ | Set-Content -LiteralPath $config
+
+          @'
+          using System;
+          using System.Collections.Generic;
+          using System.IO;
+          using System.Linq;
+          using LadybugDB;
+
+          string dbPath = Path.Combine(Path.GetTempPath(), "ladybug-published-" + Guid.NewGuid().ToString("N"));
+          try
+          {
+              using var db = new Database(dbPath);
+              using var conn = new Connection(db);
+
+              CypherRoundTrip(conn);
+              FtsRoundTrip(conn);
+              VectorRoundTrip(conn);
+
+              Console.WriteLine("published package consumer checks passed");
+              return 0;
+          }
+          finally
+          {
+              TryDelete(dbPath);
+          }
+
+          static void CypherRoundTrip(Connection conn)
+          {
+              conn.Query("CREATE NODE TABLE Person(name STRING, age INT64, PRIMARY KEY(name))").Dispose();
+              conn.Query("CREATE (:Person {name: 'Alice', age: 30})").Dispose();
+              conn.Query("CREATE (:Person {name: 'Bob', age: 42})").Dispose();
+
+              using QueryResult result = conn.Query("MATCH (p:Person) RETURN p.name, p.age ORDER BY p.age");
+              List<object?[]> rows = result.Rows().ToList();
+
+              Require(rows.Count == 2, "expected two Person rows");
+              Require((string?)rows[0][0] == "Alice" && Convert.ToInt64(rows[0][1]) == 30L, "Alice row mismatch");
+              Require((string?)rows[1][0] == "Bob" && Convert.ToInt64(rows[1][1]) == 42L, "Bob row mismatch");
+          }
+
+          static void FtsRoundTrip(Connection conn)
+          {
+              conn.Query("CREATE NODE TABLE Entity(name STRING, summary STRING, PRIMARY KEY(name))").Dispose();
+              conn.Query("CREATE (:Entity {name: 'Alice', summary: 'a software engineer who loves graph databases'})").Dispose();
+              conn.Query("CREATE (:Entity {name: 'Bob', summary: 'a painter and a sculptor of fine art'})").Dispose();
+              conn.Query("CREATE (:Entity {name: 'Carol', summary: 'a database administrator and graph theorist'})").Dispose();
+
+              InstallAndLoad(conn, "fts");
+              conn.Query("CALL CREATE_FTS_INDEX('Entity', 'node_name_and_summary', ['name', 'summary'])").Dispose();
+
+              using PreparedStatement stmt = conn.Prepare(
+                  "CALL QUERY_FTS_INDEX('Entity', 'node_name_and_summary', $query, TOP := $limit) " +
+                  "RETURN node.name AS name, score ORDER BY score DESC");
+              stmt.Bind("query", "graph databases");
+              stmt.Bind("limit", 5L);
+
+              using QueryResult result = stmt.Execute();
+              List<object?[]> rows = result.Rows().ToList();
+              List<string?> names = rows.Select(r => (string?)r[0]).ToList();
+
+              Require(rows.Count > 0, "expected FTS rows");
+              Require(names.Contains("Alice"), "FTS result should include Alice");
+              Require(!names.Contains("Bob"), "FTS result should not include Bob");
+              Require(rows.All(r => Convert.ToDouble(r[1]) > 0.0), "FTS scores must be positive");
+          }
+
+          static void VectorRoundTrip(Connection conn)
+          {
+              InstallAndLoad(conn, "vector");
+
+              conn.Query("CREATE NODE TABLE Doc(id STRING, name_embedding FLOAT[3], PRIMARY KEY(id))").Dispose();
+              conn.Query("CREATE (:Doc {id: 'a', name_embedding: [1.0, 0.0, 0.0]})").Dispose();
+              conn.Query("CREATE (:Doc {id: 'b', name_embedding: [0.0, 1.0, 0.0]})").Dispose();
+              conn.Query("CREATE (:Doc {id: 'c', name_embedding: [0.9, 0.1, 0.0]})").Dispose();
+
+              using PreparedStatement stmt = conn.Prepare(
+                  "MATCH (n:Doc) " +
+                  "WITH n, array_cosine_similarity(n.name_embedding, CAST($search_vector AS FLOAT[3])) AS score " +
+                  "WHERE score > $min_score " +
+                  "RETURN n.id AS id, score ORDER BY score DESC");
+              stmt.Bind("search_vector", new List<float> { 1.0f, 0.0f, 0.0f });
+              stmt.Bind("min_score", 0.5);
+
+              using QueryResult result = stmt.Execute();
+              List<object?[]> rows = result.Rows().ToList();
+              List<string?> ids = rows.Select(r => (string?)r[0]).ToList();
+
+              Require(ids.Count >= 2, "expected vector rows");
+              Require(ids[0] == "a", "identical vector should rank first");
+              Require(ids.Contains("c"), "near vector should survive threshold");
+              Require(!ids.Contains("b"), "orthogonal vector should be filtered out");
+              Require(rows.All(r => Convert.ToDouble(r[1]) > 0.5), "vector scores must exceed threshold");
+          }
+
+          static void InstallAndLoad(Connection conn, string extension)
+          {
+              conn.InstallExtension(extension);
+              conn.LoadExtension(extension);
+          }
+
+          static void Require(bool condition, string message)
+          {
+              if (!condition)
+              {
+                  throw new InvalidOperationException(message);
+              }
+          }
+
+          static void TryDelete(string path)
+          {
+              try
+              {
+                  if (Directory.Exists(path))
+                  {
+                      Directory.Delete(path, recursive: true);
+                  }
+                  else if (File.Exists(path))
+                  {
+                      File.Delete(path);
+                  }
+              }
+              catch
+              {
+                  // Best-effort cleanup only.
+              }
+          }
+          '@ | Set-Content -LiteralPath $program
+
+          $restored = $false
+          for ($attempt = 1; $attempt -le 6; $attempt++) {
+            dotnet restore $project --configfile $config -r $env:RID
+            if ($LASTEXITCODE -eq 0) {
+              $restored = $true
+              break
+            }
+
+            Write-Warning "restore attempt $attempt failed; waiting for GitHub Packages indexing"
+            Start-Sleep -Seconds (10 * $attempt)
+          }
+
+          if (-not $restored) {
+            throw "restore failed for LadybugDB $env:PACKAGE_VERSION on $env:RID"
+          }
+
+          dotnet run --project $project -c Release -r $env:RID --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
