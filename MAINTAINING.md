@@ -81,7 +81,7 @@ under `lib/runtimes/<rid>/native/`, then verifies package contents.
 
 ## Benchmark Baselines
 
-The BenchmarkDotNet project covers the result-reading hot path and is configured with
+The BenchmarkDotNet project covers result-reading and parameter-marshaling hot paths and is configured with
 `[MemoryDiagnoser]`. The committed baseline is:
 
 ```text

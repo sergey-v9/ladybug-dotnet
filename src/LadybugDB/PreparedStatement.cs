@@ -335,14 +335,33 @@ public sealed class PreparedStatement : IDisposable
 
     private static string ToBlobLiteral(byte[] value)
     {
-        var builder = new System.Text.StringBuilder(value.Length * 4);
+#if NET7_0_OR_GREATER
+        return string.Create(value.Length * 4, value, static (chars, bytes) => FillBlobLiteral(chars, bytes));
+#else
+        char[] chars = new char[value.Length * 4];
+        FillBlobLiteral(chars, value);
+        return new string(chars);
+#endif
+    }
+
+#if NET7_0_OR_GREATER
+    private static void FillBlobLiteral(Span<char> chars, byte[] value)
+#else
+    private static void FillBlobLiteral(char[] chars, byte[] value)
+#endif
+    {
+        int offset = 0;
         foreach (byte b in value)
         {
-            builder.Append("\\x").Append(b.ToString("X2", CultureInfo.InvariantCulture));
+            chars[offset++] = '\\';
+            chars[offset++] = 'x';
+            chars[offset++] = ToUpperHex(b >> 4);
+            chars[offset++] = ToUpperHex(b & 0xF);
         }
-
-        return builder.ToString();
     }
+
+    private static char ToUpperHex(int value) =>
+        (char)(value < 10 ? '0' + value : 'A' + value - 10);
 
     private static IntPtr CreateStructValue(IReadOnlyDictionary<string, object?> fields)
     {

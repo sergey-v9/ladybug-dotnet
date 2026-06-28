@@ -14,6 +14,8 @@ public class QueryBenchmarks
     private Database _db = null!;
     private Connection _conn = null!;
     private PreparedStatement _prepared = null!;
+    private PreparedStatement _blobPrepared = null!;
+    private byte[] _blob = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -29,11 +31,18 @@ public class QueryBenchmarks
         }
 
         _prepared = _conn.Prepare("MATCH (p:Person) WHERE p.age >= $a RETURN p.name");
+        _blobPrepared = _conn.Prepare("RETURN CAST($b AS BLOB)");
+        _blob = new byte[512];
+        for (int i = 0; i < _blob.Length; i++)
+        {
+            _blob[i] = (byte)i;
+        }
     }
 
     [GlobalCleanup]
     public void Cleanup()
     {
+        _blobPrepared.Dispose();
         _prepared.Dispose();
         _conn.Dispose();
         _db.Dispose();
@@ -59,5 +68,12 @@ public class QueryBenchmarks
         _prepared.Bind("a", 500L);
         using QueryResult r = _conn.Execute(_prepared);
         return r.Rows().Count();
+    }
+
+    [Benchmark]
+    public int BindBlob()
+    {
+        _blobPrepared.Bind("b", _blob);
+        return _blob.Length;
     }
 }
