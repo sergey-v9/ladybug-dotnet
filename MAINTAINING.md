@@ -223,6 +223,22 @@ Rules that should not change without deliberate review:
   function.
 - Result/tuple/value disposal must respect the native ownership flag.
 
+## Upstream Engine Sync
+
+The binding tracks the `LadybugDB/ladybug` engine on **two independent tracks**, both documented as a
+repeatable runbook in [`docs/upstream-sync.md`](docs/upstream-sync.md):
+
+- **Stable / release** — `version.txt` pins the latest published engine **release** (now `0.17.1.0` →
+  `v0.17.1`); natives are downloaded release assets. This is the `ci.yml` / `release.yml` flow.
+- **Main-tracking / dev** — `upstream-engine.pin` pins an engine **commit**; the fork's
+  `github-packages-dev.yml` builds `lbug_shared` from that source per RID and publishes a
+  `0.18.0-dev.*` prerelease to GitHub Packages, so the fork rides upstream `main`.
+
+The gate that decides whether a sync needs *code* changes is a C-API header diff
+(`git diff <oldpin> <newpin> -- src/include/c_api/`): empty → bump the pin only; non-empty → follow the
+**ABI Update Checklist** above. See the runbook for the full step-by-step (including
+`scripts/build-native-from-pin.ps1` to reproduce the source build locally).
+
 ## Package Family
 
 `LadybugDB` is managed-only. Native libraries ship separately in one package per RID, and

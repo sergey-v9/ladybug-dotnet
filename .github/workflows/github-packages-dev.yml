@@ -1,7 +1,13 @@
 name: GitHub Packages Dev
 
-# Publishes fork-only prerelease packages to GitHub Packages from sergey-v9/ladybug-dotnet.
-# The repository/ref guard keeps this workflow inert if the file ever appears outside the fork's dev branch.
+# Main-tracking dev feed for the fork sergey-v9/ladybug-dotnet.
+#
+# Instead of downloading a published engine RELEASE, this workflow builds lbug_shared FROM SOURCE at the
+# upstream commit pinned in upstream-engine.pin (per RID), stages it, packs the family as a
+# `<engine_version>-dev.<run>.<attempt>.eng-<engineShort>` prerelease, publishes to GitHub Packages, and
+# verifies the published packages on every shipped RID. Advance the pin via docs/upstream-sync.md.
+#
+# The repository/ref guards keep this inert anywhere but the fork's dev branch.
 
 on:
   push:
@@ -10,63 +16,143 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  publish:
+  pin:
     if: github.repository == 'sergey-v9/ladybug-dotnet' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     outputs:
-      package-version: ${{ steps.ver.outputs.version }}
+      commit: ${{ steps.read.outputs.commit }}
+      version: ${{ steps.read.outputs.version }}
     steps:
       - uses: actions/checkout@v6
+      - name: Read upstream-engine.pin and compute the prerelease version
+        id: read
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMIT=$(grep -E '^commit=' upstream-engine.pin | head -1 | cut -d= -f2 | tr -d '[:space:]')
+          ENGINE_VERSION=$(grep -E '^engine_version=' upstream-engine.pin | head -1 | cut -d= -f2 | tr -d '[:space:]')
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "pin commit must be a full 40-char SHA, got '$COMMIT'" >&2; exit 1; }
+          [[ "$ENGINE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "engine_version must be X.Y.Z, got '$ENGINE_VERSION'" >&2; exit 1; }
+          VERSION="${ENGINE_VERSION}-dev.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}.eng-${COMMIT:0:9}"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building bindings against LadybugDB/ladybug@${COMMIT:0:9}; package version $VERSION"
 
+  build-native:
+    needs: pin
+    name: build native (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: linux-x64,   os: ubuntu-latest }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm }
+          - { rid: win-x64,     os: windows-latest }
+          - { rid: osx-x64,     os: macos-15-intel }
+          - { rid: osx-arm64,   os: macos-latest }
+    steps:
+      - name: Checkout engine @ pin
+        uses: actions/checkout@v6
+        with:
+          repository: LadybugDB/ladybug
+          ref: ${{ needs.pin.outputs.commit }}
+          submodules: recursive
+          path: engine
+
+      - name: Install CMake + Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake ninja-build
+
+      - name: Install CMake + Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake ninja
+
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja -y
+
+      - name: Build lbug_shared (Release, shared only)
+        shell: bash
+        working-directory: engine
+        run: |
+          set -euo pipefail
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHELL=OFF -DBUILD_SINGLE_FILE_HEADER=OFF -DBUILD_STATIC_LBUG=OFF -DBUILD_TESTS=OFF \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            .
+          cmake --build build --target lbug_shared
+
+      - name: Stage the built native under runtimes/<rid>/native
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.rid }}" in
+            win-*)   ext=dll;   canonical=lbug_shared.dll ;;
+            osx-*)   ext=dylib; canonical=liblbug.dylib ;;
+            linux-*) ext=so;    canonical=liblbug.so ;;
+          esac
+          # The shared-lib output name varies by platform; pick the largest produced *lbug*.<ext>.
+          built=$(find engine/build/src -type f -name "*lbug*.${ext}" ! -name '*.lib' 2>/dev/null | xargs ls -S 2>/dev/null | head -1)
+          [ -n "$built" ] || { echo "no *lbug*.${ext} produced under engine/build/src" >&2; ls -R engine/build/src || true; exit 1; }
+          mkdir -p "out/runtimes/${{ matrix.rid }}/native"
+          cp "$built" "out/runtimes/${{ matrix.rid }}/native/${canonical}"
+          echo "staged $built -> out/runtimes/${{ matrix.rid }}/native/${canonical}"
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: out/runtimes/${{ matrix.rid }}/native/*
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: [pin, build-native]
+    if: github.repository == 'sergey-v9/ladybug-dotnet' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      package-version: ${{ needs.pin.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
-      - name: Determine package and engine versions
-        id: ver
+      - name: Download source-built natives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: staged
+          merge-multiple: true
+
+      - name: Stage natives into lib/runtimes (so Cake reuses them, no release download)
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p lib
+          cp -r staged/runtimes lib/runtimes
+          find lib/runtimes -type f -print
 
-          BASE="$(tr -d '[:space:]' < version.txt)"
-          BASE="${BASE%%+*}"
-          BASE="${BASE%%-*}"
-
-          IFS='.' read -r MAJOR MINOR PATCH _ <<< "$BASE"
-          if [[ ! "${MAJOR:-}" =~ ^[0-9]+$ || ! "${MINOR:-}" =~ ^[0-9]+$ || ! "${PATCH:-}" =~ ^[0-9]+$ ]]; then
-            echo "Package version '$BASE' must start with three numeric engine segments." >&2
-            exit 1
-          fi
-
-          SHORT_SHA="${GITHUB_SHA::7}"
-          VERSION="${BASE}-dev.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}.g${SHORT_SHA}"
-          ENGINE="v${MAJOR}.${MINOR}.${PATCH}"
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "engine=$ENGINE" >> "$GITHUB_OUTPUT"
-          echo "Resolved package version: $VERSION"
-          echo "Pulling native libs from LadybugDB/ladybug release: $ENGINE"
-
-      - name: Test gate (host RID against the real engine)
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Test gate (host RID) against the source-built native
         run: >
-          dotnet run --project cake/LadybugDB.Build.csproj --
-          --target Test
-          --engine-version "${{ steps.ver.outputs.engine }}"
+          dotnet run --project cake/LadybugDB.Build.csproj -- --target Test
 
       - name: Pack + verify the full package family
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: >
           dotnet run --project cake/LadybugDB.Build.csproj --
           --target Pack
-          --package-version "${{ steps.ver.outputs.version }}"
-          --engine-version "${{ steps.ver.outputs.engine }}"
+          --package-version "${{ needs.pin.outputs.version }}"
           --repository-url "https://github.com/sergey-v9/ladybug-dotnet"
 
       - name: Configure GitHub Packages source

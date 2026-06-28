@@ -1,0 +1,19 @@
+# Upstream engine pin — main-tracking dev feed.
+#
+# This fork's `dev` packages (0.18.0-dev.* prereleases on GitHub Packages) are built against the
+# LadybugDB/ladybug engine SOURCE at the commit below — so they ride upstream `main` and carry fixes
+# before they are released. Advance this pin with the runbook in docs/upstream-sync.md.
+#
+# The STABLE/release package family is INDEPENDENT of this file: it is pinned by version.txt to the
+# latest published engine RELEASE (currently v0.17.1) and ships prebuilt release natives.
+#
+# Format: key=value, one per line. Consumed by .github/workflows/github-packages-dev.yml and
+# scripts/build-native-from-pin.ps1.
+
+repo=LadybugDB/ladybug
+commit=d8277a8e5c805f79115f8869d456bde23a0e8ea5
+describe=v0.17.1-102-gd8277a8e5
+engine_version=0.18.0
+capi_stable_since=v0.17.1
+updated=2026-06-28
+note=C API header (src/include/c_api/lbug.h) is byte-identical v0.17.1..this commit; binding interop needs no changes. Picked up upstream fix d8277a8e5 "narrow solution for double free crash on destroy".
