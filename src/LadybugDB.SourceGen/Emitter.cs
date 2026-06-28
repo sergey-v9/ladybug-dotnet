@@ -76,7 +76,8 @@ internal static class Emitter
         sb.AppendLine($"        private static System.Collections.Generic.IReadOnlyList<{model.TypeFullName}> {MapMethodName(model)}(global::LadybugDB.QueryResult result)");
         sb.AppendLine("        {");
         sb.AppendLine("            var __idx = BuildIndex(result.ColumnNames);");
-        sb.AppendLine($"            var __list = new System.Collections.Generic.List<{model.TypeFullName}>();");
+        sb.AppendLine("            int __capacity = result.RowCount > (ulong)int.MaxValue ? int.MaxValue : (int)result.RowCount;");
+        sb.AppendLine($"            var __list = new System.Collections.Generic.List<{model.TypeFullName}>(__capacity);");
         if (CanEmitTypedAccessorPath(model))
         {
             sb.AppendLine($"            if ({CanUseTypedAccessorsMethodName(model)}(result.Columns, __idx))");

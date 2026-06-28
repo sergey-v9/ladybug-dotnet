@@ -86,6 +86,7 @@ internal static class GeneratorHarness
             }
             public sealed class QueryResult
             {
+                public ulong RowCount => 0;
                 public IReadOnlyList<string> ColumnNames => Array.Empty<string>();
                 public IReadOnlyList<ColumnSchema> Columns => Array.Empty<ColumnSchema>();
                 public bool HasNext() => false;

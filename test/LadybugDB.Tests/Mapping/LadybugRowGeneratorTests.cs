@@ -30,6 +30,7 @@ public sealed class LadybugRowGeneratorTests
         Assert.Contains("public static System.Collections.Generic.IReadOnlyList<T> Map<T>", allGenerated);
         // Per-type private materializer over the concrete row type.
         Assert.Contains("global::Demo.Person", allGenerated);
+        Assert.Contains("new System.Collections.Generic.List<global::Demo.Person>(__capacity)", allGenerated);
     }
 
     [Fact]
