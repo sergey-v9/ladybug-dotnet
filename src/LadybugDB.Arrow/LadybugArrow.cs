@@ -15,10 +15,7 @@ public static partial class LadybugArrow
     /// <summary>Reads the result's Arrow <see cref="Schema"/> (column names + Arrow types).</summary>
     public static Schema ReadSchema(this QueryResult result)
     {
-        if (result is null)
-        {
-            throw new ArgumentNullException(nameof(result));
-        }
+        ThrowHelpers.ThrowIfNull(result, nameof(result));
 
         ArrowSchemaHandle handle = result.GetArrowSchema();
         try
@@ -43,10 +40,7 @@ public static partial class LadybugArrow
     /// </summary>
     public static IEnumerable<RecordBatch> ReadBatches(this QueryResult result, long chunkSize = 1_000_000)
     {
-        if (result is null)
-        {
-            throw new ArgumentNullException(nameof(result));
-        }
+        ThrowHelpers.ThrowIfNull(result, nameof(result));
 
         Schema schema = result.ReadSchema();
         while (true)
@@ -79,20 +73,9 @@ public static partial class LadybugArrow
     /// </summary>
     public static void CreateArrowTable(this Connection connection, string tableName, RecordBatch batch)
     {
-        if (connection is null)
-        {
-            throw new ArgumentNullException(nameof(connection));
-        }
-
-        if (tableName is null)
-        {
-            throw new ArgumentNullException(nameof(tableName));
-        }
-
-        if (batch is null)
-        {
-            throw new ArgumentNullException(nameof(batch));
-        }
+        ThrowHelpers.ThrowIfNull(connection, nameof(connection));
+        ThrowHelpers.ThrowIfNull(tableName, nameof(tableName));
+        ThrowHelpers.ThrowIfNull(batch, nameof(batch));
 
         // Clone into Arrow-owned (allocator-backed) memory first: a batch IMPORTED from the engine's
         // C-Data export wraps externally-owned buffers that the C-Data exporter cannot re-export
@@ -134,30 +117,11 @@ public static partial class LadybugArrow
     /// </summary>
     public static void CreateArrowRelTable(this Connection connection, string tableName, RecordBatch batch, string fromTable, string toTable)
     {
-        if (connection is null)
-        {
-            throw new ArgumentNullException(nameof(connection));
-        }
-
-        if (tableName is null)
-        {
-            throw new ArgumentNullException(nameof(tableName));
-        }
-
-        if (batch is null)
-        {
-            throw new ArgumentNullException(nameof(batch));
-        }
-
-        if (fromTable is null)
-        {
-            throw new ArgumentNullException(nameof(fromTable));
-        }
-
-        if (toTable is null)
-        {
-            throw new ArgumentNullException(nameof(toTable));
-        }
+        ThrowHelpers.ThrowIfNull(connection, nameof(connection));
+        ThrowHelpers.ThrowIfNull(tableName, nameof(tableName));
+        ThrowHelpers.ThrowIfNull(batch, nameof(batch));
+        ThrowHelpers.ThrowIfNull(fromTable, nameof(fromTable));
+        ThrowHelpers.ThrowIfNull(toTable, nameof(toTable));
 
         // See CreateArrowTable: clone into allocator-backed memory so an imported batch re-exports,
         // and free the outer C-Data shells in a finally after the engine moves their contents out.

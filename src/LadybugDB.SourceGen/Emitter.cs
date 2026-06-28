@@ -186,9 +186,7 @@ internal static class Emitter
     {
         TypedAccessor accessor = GetTypedAccessor(m)!;
         string ordinal = TypedIndexLocalName(m, index);
-        string expression = accessor.IsString
-            ? $"__tuple.{accessor.ReadMethod}({ordinal})"
-            : $"__tuple.{accessor.ReadMethod}({ordinal})";
+        string expression = $"__tuple.{accessor.ReadMethod}({ordinal})";
         return accessor.IsString && !m.IsNullable ? expression + "!" : expression;
     }
 
