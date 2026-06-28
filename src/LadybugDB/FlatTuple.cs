@@ -418,9 +418,6 @@ public sealed class FlatTuple : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw new ObjectDisposedException(nameof(FlatTuple));
-        }
+        ThrowHelpers.ThrowIfDisposed(Volatile.Read(ref _disposed) != 0, this);
     }
 }

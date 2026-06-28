@@ -36,11 +36,7 @@ public sealed class ArrowSchemaHandle : IDisposable
     {
         get
         {
-            if (System.Threading.Volatile.Read(ref _disposed) != 0)
-            {
-                throw new ObjectDisposedException(nameof(ArrowSchemaHandle));
-            }
-
+            ThrowHelpers.ThrowIfDisposed(System.Threading.Volatile.Read(ref _disposed) != 0, this);
             return _ptr;
         }
     }

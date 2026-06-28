@@ -43,10 +43,7 @@ public sealed partial class Connection
 
     private static string ValidateExtensionName(string name)
     {
-        if (name is null)
-        {
-            throw new ArgumentNullException(nameof(name));
-        }
+        name = ThrowHelpers.ThrowIfNull(name, nameof(name));
 
         string trimmed = name.Trim();
         if (trimmed.Length == 0)

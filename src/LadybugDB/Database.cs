@@ -20,10 +20,7 @@ public sealed class Database : IDisposable
     /// <param name="config">Optional runtime configuration; native defaults are used when omitted.</param>
     public Database(string databasePath = "", SystemConfig? config = null)
     {
-        if (databasePath is null)
-        {
-            throw new ArgumentNullException(nameof(databasePath));
-        }
+        databasePath = ThrowHelpers.ThrowIfNull(databasePath, nameof(databasePath));
 
         LbugSystemConfig nativeConfig = (config ?? new SystemConfig()).ToNative();
         LbugState state = Native.DatabaseInit(databasePath, nativeConfig, out _handle);
@@ -42,10 +39,7 @@ public sealed class Database : IDisposable
 
     internal void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw new ObjectDisposedException(nameof(Database));
-        }
+        ThrowHelpers.ThrowIfDisposed(Volatile.Read(ref _disposed) != 0, this);
     }
 
     /// <inheritdoc />

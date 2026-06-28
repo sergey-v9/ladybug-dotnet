@@ -30,10 +30,7 @@ public sealed partial class Connection
     /// block a thread-pool thread (CONC-5); use one connection per concurrent operation or a pool.</remarks>
     public Task<QueryResult> QueryAsync(string cypher, CancellationToken ct = default)
     {
-        if (cypher is null)
-        {
-            throw new ArgumentNullException(nameof(cypher));
-        }
+        cypher = ThrowHelpers.ThrowIfNull(cypher, nameof(cypher));
 
         return RunWithCancellation(() => Query(cypher), ct);
     }
@@ -41,10 +38,7 @@ public sealed partial class Connection
     /// <summary>Executes a multi-statement Cypher query asynchronously, returning every result set.</summary>
     public Task<IReadOnlyList<QueryResult>> QueryAllAsync(string cypher, CancellationToken ct = default)
     {
-        if (cypher is null)
-        {
-            throw new ArgumentNullException(nameof(cypher));
-        }
+        cypher = ThrowHelpers.ThrowIfNull(cypher, nameof(cypher));
 
         return RunWithCancellation<IReadOnlyList<QueryResult>>(() => QueryAll(cypher), ct);
     }
@@ -52,10 +46,7 @@ public sealed partial class Connection
     /// <summary>Prepares a parameterized Cypher statement asynchronously.</summary>
     public Task<PreparedStatement> PrepareAsync(string cypher, CancellationToken ct = default)
     {
-        if (cypher is null)
-        {
-            throw new ArgumentNullException(nameof(cypher));
-        }
+        cypher = ThrowHelpers.ThrowIfNull(cypher, nameof(cypher));
 
         return RunWithCancellation(() => Prepare(cypher), ct);
     }
@@ -63,10 +54,7 @@ public sealed partial class Connection
     /// <summary>Executes a previously prepared statement asynchronously.</summary>
     public Task<QueryResult> ExecuteAsync(PreparedStatement statement, CancellationToken ct = default)
     {
-        if (statement is null)
-        {
-            throw new ArgumentNullException(nameof(statement));
-        }
+        statement = ThrowHelpers.ThrowIfNull(statement, nameof(statement));
 
         return RunWithCancellation(() => Execute(statement), ct);
     }
@@ -80,10 +68,7 @@ public sealed partial class Connection
         string cypher,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        if (cypher is null)
-        {
-            throw new ArgumentNullException(nameof(cypher));
-        }
+        cypher = ThrowHelpers.ThrowIfNull(cypher, nameof(cypher));
 
         QueryResult result = await QueryAsync(cypher, ct).ConfigureAwait(false);
         try

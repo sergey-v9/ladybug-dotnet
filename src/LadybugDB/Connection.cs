@@ -24,7 +24,7 @@ public sealed partial class Connection : IDisposable
     /// <summary>Creates a new connection to <paramref name="database"/>.</summary>
     public Connection(Database database)
     {
-        _database = database ?? throw new ArgumentNullException(nameof(database));
+        _database = ThrowHelpers.ThrowIfNull(database, nameof(database));
 
         LbugState state = database.InitConnection(out _handle);
         if (state != LbugState.Success)
@@ -37,10 +37,7 @@ public sealed partial class Connection : IDisposable
     /// <exception cref="LadybugQueryException">Thrown when the query fails to execute.</exception>
     public QueryResult Query(string cypher)
     {
-        if (cypher is null)
-        {
-            throw new ArgumentNullException(nameof(cypher));
-        }
+        cypher = ThrowHelpers.ThrowIfNull(cypher, nameof(cypher));
 
         using Diagnostics.QueryScope scope = Diagnostics.LadybugInstrumentation.StartQuery(cypher);
         try
@@ -67,10 +64,7 @@ public sealed partial class Connection : IDisposable
     /// <exception cref="LadybugQueryException">Thrown when the statement fails to prepare.</exception>
     public PreparedStatement Prepare(string cypher)
     {
-        if (cypher is null)
-        {
-            throw new ArgumentNullException(nameof(cypher));
-        }
+        cypher = ThrowHelpers.ThrowIfNull(cypher, nameof(cypher));
 
         lock (_gate)
         {
@@ -93,10 +87,7 @@ public sealed partial class Connection : IDisposable
     /// <exception cref="LadybugQueryException">Thrown when execution fails.</exception>
     public QueryResult Execute(PreparedStatement statement)
     {
-        if (statement is null)
-        {
-            throw new ArgumentNullException(nameof(statement));
-        }
+        statement = ThrowHelpers.ThrowIfNull(statement, nameof(statement));
 
         lock (_gate)
         {
@@ -109,10 +100,7 @@ public sealed partial class Connection : IDisposable
     /// <summary>Prepares, binds, and executes a parameterized query in one call.</summary>
     public QueryResult Execute(string cypher, IReadOnlyDictionary<string, object?> parameters)
     {
-        if (parameters is null)
-        {
-            throw new ArgumentNullException(nameof(parameters));
-        }
+        parameters = ThrowHelpers.ThrowIfNull(parameters, nameof(parameters));
 
         using PreparedStatement statement = Prepare(cypher);
         foreach (KeyValuePair<string, object?> parameter in parameters)
@@ -159,11 +147,7 @@ public sealed partial class Connection : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw new ObjectDisposedException(nameof(Connection));
-        }
-
+        ThrowHelpers.ThrowIfDisposed(Volatile.Read(ref _disposed) != 0, this);
         _database.ThrowIfDisposed();
     }
 

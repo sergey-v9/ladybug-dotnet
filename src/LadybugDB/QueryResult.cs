@@ -312,9 +312,6 @@ public sealed partial class QueryResult : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw new ObjectDisposedException(nameof(QueryResult));
-        }
+        ThrowHelpers.ThrowIfDisposed(Volatile.Read(ref _disposed) != 0, this);
     }
 }

@@ -512,9 +512,6 @@ public sealed class Value : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw new ObjectDisposedException(nameof(Value));
-        }
+        ThrowHelpers.ThrowIfDisposed(Volatile.Read(ref _disposed) != 0, this);
     }
 }

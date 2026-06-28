@@ -20,10 +20,7 @@ public sealed partial class Connection
     /// </summary>
     internal QueryResult CreateArrowTableInternal(string tableName, IntPtr schemaPtr, IntPtr arraysPtr, ulong numArrays)
     {
-        if (tableName is null)
-        {
-            throw new ArgumentNullException(nameof(tableName));
-        }
+        tableName = ThrowHelpers.ThrowIfNull(tableName, nameof(tableName));
 
         // ARROW-1: pass the caller's original C-Data shell pointers straight through. The previous
         // PtrToStructure round-trip handed the engine a pinned COPY and left the real shells (which the
@@ -44,20 +41,9 @@ public sealed partial class Connection
     /// </summary>
     internal QueryResult CreateArrowRelTableInternal(string tableName, string fromTable, string toTable, IntPtr schemaPtr, IntPtr arraysPtr, ulong numArrays)
     {
-        if (tableName is null)
-        {
-            throw new ArgumentNullException(nameof(tableName));
-        }
-
-        if (fromTable is null)
-        {
-            throw new ArgumentNullException(nameof(fromTable));
-        }
-
-        if (toTable is null)
-        {
-            throw new ArgumentNullException(nameof(toTable));
-        }
+        tableName = ThrowHelpers.ThrowIfNull(tableName, nameof(tableName));
+        fromTable = ThrowHelpers.ThrowIfNull(fromTable, nameof(fromTable));
+        toTable = ThrowHelpers.ThrowIfNull(toTable, nameof(toTable));
 
         // ARROW-1: pass the caller's original C-Data shell pointers straight through (see
         // CreateArrowTableInternal). The caller in LadybugDB.Arrow frees the shells after this returns.

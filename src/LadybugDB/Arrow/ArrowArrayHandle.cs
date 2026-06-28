@@ -35,11 +35,7 @@ public sealed class ArrowArrayHandle : IDisposable
     {
         get
         {
-            if (System.Threading.Volatile.Read(ref _disposed) != 0)
-            {
-                throw new ObjectDisposedException(nameof(ArrowArrayHandle));
-            }
-
+            ThrowHelpers.ThrowIfDisposed(System.Threading.Volatile.Read(ref _disposed) != 0, this);
             return _ptr;
         }
     }

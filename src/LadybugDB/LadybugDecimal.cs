@@ -90,10 +90,7 @@ public readonly struct LadybugDecimal : IEquatable<LadybugDecimal>
     /// <exception cref="FormatException"><paramref name="s"/> is not a valid fixed-point literal.</exception>
     public static LadybugDecimal Parse(string s)
     {
-        if (s is null)
-        {
-            throw new ArgumentNullException(nameof(s));
-        }
+        s = ThrowHelpers.ThrowIfNull(s, nameof(s));
 
         string text = s.Trim();
         if (text.Length == 0)

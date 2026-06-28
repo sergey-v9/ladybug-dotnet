@@ -79,10 +79,7 @@ public sealed class PreparedStatement : IDisposable
 
     public PreparedStatement Bind(string name, string value)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        value = ThrowHelpers.ThrowIfNull(value, nameof(value));
 
         return Do(name, Native.PreparedStatementBindString(ref _handle, Name(name), value));
     }
@@ -131,10 +128,7 @@ public sealed class PreparedStatement : IDisposable
     /// </summary>
     public PreparedStatement Bind(string name, byte[] value)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        value = ThrowHelpers.ThrowIfNull(value, nameof(value));
 
         return Bind(name, ToBlobLiteral(value));
     }
@@ -142,10 +136,7 @@ public sealed class PreparedStatement : IDisposable
     /// <summary>Binds a dictionary as a STRUCT parameter.</summary>
     public PreparedStatement Bind(string name, IReadOnlyDictionary<string, object?> value)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        value = ThrowHelpers.ThrowIfNull(value, nameof(value));
 
         return BindValue(name, CreateStructValue(value));
     }
@@ -153,10 +144,7 @@ public sealed class PreparedStatement : IDisposable
     /// <summary>Binds a key/value sequence as a MAP parameter.</summary>
     public PreparedStatement BindMap(string name, IEnumerable<KeyValuePair<object, object?>> value)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        value = ThrowHelpers.ThrowIfNull(value, nameof(value));
 
         return BindValue(name, CreateMapValue(value));
     }
@@ -223,7 +211,7 @@ public sealed class PreparedStatement : IDisposable
     private string Name(string name)
     {
         ThrowIfDisposed();
-        return name ?? throw new ArgumentNullException(nameof(name));
+        return ThrowHelpers.ThrowIfNull(name, nameof(name));
     }
 
     private static long ToUtcTicks(DateTime value)
@@ -839,9 +827,6 @@ public sealed class PreparedStatement : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw new ObjectDisposedException(nameof(PreparedStatement));
-        }
+        ThrowHelpers.ThrowIfDisposed(Volatile.Read(ref _disposed) != 0, this);
     }
 }
