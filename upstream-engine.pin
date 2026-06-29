@@ -17,3 +17,7 @@ engine_version=0.18.0
 capi_stable_since=v0.17.1
 updated=2026-06-28
 note=C API header (src/include/c_api/lbug.h) is byte-identical v0.17.1..this commit; binding interop needs no changes. Picked up upstream fix d8277a8e5 "narrow solution for double free crash on destroy".
+# consumer_impact: one-line, structured summary of what THIS pin changes for downstream consumers
+# (e.g. Graphiti), so they don't re-derive it each cycle. Required on every bump (see docs/upstream-sync.md).
+# Fields: interop=<none|...>; fts_scoring=<...>; new_ddl=<...>; fixes=<...>; note=<...>
+consumer_impact=interop=none; fts_scoring=unchanged-from-v0.17.1; new_ddl=DROP_FTS_INDEX,DROP_INDEX_IF_EXISTS; fixes=double-free-on-destroy,delete/checkpoint-CSR-SIGSEGV; note=re-verify FTS ordering on first 0.18.0 open (insert-fix partly reverted)

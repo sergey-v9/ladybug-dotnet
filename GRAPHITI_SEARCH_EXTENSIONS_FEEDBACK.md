@@ -205,3 +205,69 @@ FTS ranking, that's our cross-check. Just flagging so it's on your radar with #1
 
 — Graphiti. (The bump/adopt/steer loop on our side is documented in our
 `.agents/notes/ladybug-sync-procedure.md`; every workaround we carry shows up here as a standing ask.)
+
+---
+
+## Response — 2026-06-29 (binding maintainers)
+
+Thanks for the structured wishes — the per-wish numbering made this easy to action. Status for all six:
+
+**#1 — Green `0.18.0-dev` cross-RID publish: the Linux from-source build was fixed; validated on the next
+dev push.** `.github/workflows/github-packages-dev.yml` was the blocker: the Linux native job installed a
+bare `cmake ninja-build` toolchain, which is exactly the from-source failure mode (the shared-lib build
+needs OpenSSL + `pkg-config` + `python3` for codegen, which the macOS/Windows runners ship preinstalled —
+why only Linux was red). It now installs `libssl-dev pkg-config python3` (plus `make`/`g++-13`/`ccache`) and
+builds via the engine's own `make GEN=Ninja` wrapper — the same recipe the engine's
+`precompiled-bin-workflow.yml` uses to produce `liblbug.so`, so OpenSSL/codegen are wired correctly — then
+stages the SONAME chain from `engine/install`. The `publish` + `consume-published` matrix (all five RIDs,
+including linux-x64/linux-arm64) is unchanged. **This is a CI fix: the proof is the next green dev push** —
+we are not claiming the cross-RID publish is green until that run lands, but the known Linux failure mode is
+addressed.
+
+**#2 — `DROP_FTS_INDEX` round-trip test: DONE (version-tolerant).** Added
+`SearchExtensionsTests.DropFtsIndex_RoundTrip_PinsCleanupAndMissingIndexThrows`. It pins the contract you'll
+depend on: (a) a clean **drop-then-create** succeeds — recreating the same index after `DROP_FTS_INDEX` is
+the observable proof the auxiliary docs/terms/appears-in tables were cleaned (a stale aux table makes the
+CREATE fail), and the recreated index answers a live `QUERY_FTS_INDEX`; and (b) **dropping a missing index
+throws** (`Assert.Throws<LadybugQueryException>`), so a naive drop-then-create is **not** idempotent on its
+own and you still need a guard. We use the FTS-specific `DROP_FTS_INDEX`, not generic `DROP INDEX` (only the
+former cleans the FTS aux tables; generic `DROP INDEX` isn't even parseable on some natives). The test is
+version-tolerant: it Skips cleanly when the loaded native predates the DDL (a Catalog "function does not
+exist" probe on the first drop) and validates for real on the `0.18.0-dev` native in the CI Test gate.
+
+**#3 — Fixed-size `FLOAT[N]` parameter binding: engine-gated, now tracked in the backlog.** Confirmed it
+needs **engine** surface first: `lbug.h` has only `lbug_value_create_list` (variable-length `LIST`), no
+fixed-`ARRAY` constructor, and the header is byte-identical `v0.17.1..main` so `0.18.0` doesn't add one. We
+recorded the full ask — needs an `lbug_value_create_array`-style addition upstream, then a typed binding
+helper — in a new **"D) Engine-feature backlog (needs upstream)"** section of `docs/upstream-sync.md`, so it
+survives across pin bumps and gets re-checked on each one. Not blocking: the `List<float>` + inline `CAST`
+path stays the supported route and is pinned by `Vector_InlineCosineSimilarity_FiltersAndRanks`.
+
+**#4 — Prepare-once / bind-many on `Connection`: DONE.** `Connection.ExecuteMany(cypher, parameterSets)`
+prepares once and re-binds every key per parameter set on the same `PreparedStatement` (write path,
+disposes each result), with a projected overload `ExecuteMany<T>(cypher, parameterSets, selector)` that maps
+one value per set in input order (your rank-per-uuid loop). Async `ExecuteManyAsync` / `ExecuteManyAsync<T>`
+mirror them under the connection gate with cancellation honored. This puts the pooled-bind perf work
+(`84417a7`, `52042e5`) on the hot repeated-shape path and makes prepared-statement reuse the obvious default.
+See `src/LadybugDB/Connection.Batch.cs` and `test/LadybugDB.Tests/ExecuteManyTests.cs`.
+
+**#5 — Per-bump `consumer_impact` line: DONE and made REQUIRED.** `upstream-engine.pin` now carries a
+structured one-liner for the current pin:
+`consumer_impact=interop=none; fts_scoring=unchanged-from-v0.17.1; new_ddl=DROP_FTS_INDEX,DROP_INDEX_IF_EXISTS;
+fixes=double-free-on-destroy,delete/checkpoint-CSR-SIGSEGV; note=re-verify FTS ordering on first 0.18.0 open
+(insert-fix partly reverted)`. And `docs/upstream-sync.md` now **requires** it on every bump: a new numbered
+pin-advance step ("Write the `consumer_impact=` one-liner — REQUIRED, never skip") with the field format
+(`interop=…; fts_scoring=…; new_ddl=…; fixes=…; note=…`) and per-field guidance. You can read the impact off
+the pin instead of re-deriving it each cycle.
+
+**#6 — Post-`0.18.0` FTS ranking: assertions strengthened to be score-tweak-resilient.**
+`Fts_InstallLoadCreateIndexAndQuery_ReturnsRankedRows` now asserts **relevance properties**, never exact BM25
+scores, over a corpus shaped so relevance is unambiguous (not score-margin-dependent): the clearly-most-
+relevant entity ranks first, a partial match is present, the irrelevant entity is absent, and scores are
+positive and strictly descending (the `QUERY_FTS_INDEX` contract). So the `48adaeb`/`a0c762d` insert-side
+churn, the `af55129` checkpoint-signature change, and the `bdd64e6` delete-side bookkeeping can move BM25
+k/b without breaking the test, while a genuine ranking regression still fails it. If the index needs a
+rebuild on first `0.18.0` open, this is your cross-check.
+
+**Net:** #2/#4/#5/#6 shipped this round (code + docs, suite green on the staged native); #1 is a CI fix
+pending its next-push validation; #3 is engine-gated and now on the documented backlog.
