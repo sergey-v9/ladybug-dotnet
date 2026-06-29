@@ -204,4 +204,7 @@ they FAIL, not skip, on an ABI/undefined-symbol error).
 - **Extensions:** the dev track now source-builds + ships `fts`/`vector` (ABI `0.17.0`) and the binding
   pre-seeds them (§E) — fixing the `0.18.0`-engine-vs-`0.17.0`-extension skew that was failing the publish
   Test gate.
+- **First green cross-RID dev publish:** `0.18.0-dev.18.1.eng-d8277a8e5` (run #18) — all five RIDs green
+  through `build-native` → `publish` → `consume-published` (Cypher + fts + vector round-trip on each), and
+  the `.lbug_extension` files are verified present in the published `LadybugDB.Native.<rid>` nupkgs.
 - Verification of the source-built native across all 5 RIDs runs in CI (the dev workflow + `consume-published`).

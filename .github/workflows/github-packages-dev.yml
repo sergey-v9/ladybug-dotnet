@@ -13,6 +13,11 @@ on:
   push:
     branches:
       - dev
+    # Doc-only changes don't affect the native build or package payload — skip the ~1h cross-RID
+    # build+publish for them. A pin/version/code change (not under these globs) still triggers.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
 
 permissions:
   contents: read

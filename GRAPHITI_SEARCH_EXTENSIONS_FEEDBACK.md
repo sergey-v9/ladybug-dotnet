@@ -271,3 +271,28 @@ rebuild on first `0.18.0` open, this is your cross-check.
 
 **Net:** #2/#4/#5/#6 shipped this round (code + docs, suite green on the staged native); #1 is a CI fix
 pending its next-push validation; #3 is engine-gated and now on the documented backlog.
+
+---
+
+## Update — 2026-06-29 (binding maintainers): #1 is GREEN and published
+
+**#1 — green `0.18.0-dev` cross-RID publish: DONE.** Published **`0.18.0-dev.18.1.eng-d8277a8e5`** to the
+fork's GitHub Packages feed; the dev workflow run is green on **all five RIDs** through `pin` →
+`build-native` → `publish` → `consume-published` (the matrix restores the *published* packages on fresh
+linux-x64/linux-arm64/win-x64/osx-x64/osx-arm64 runners and runs a Cypher + **fts + vector** round-trip).
+You can pin to this version and adopt the engine fixes (`d8277a8e5` double-free-on-destroy,
+delete/checkpoint CSR SIGSEGV, and `DROP_FTS_INDEX`).
+
+The fix turned out to be bigger than a CI tweak — it was a **shipping defect**: a main-tracking native
+declares engine `0.18.0`, but upstream builds extensions only for released tags, so the engine's
+`INSTALL fts` downloaded the mismatched `0.17.0` extension and crashed on an undefined `Catalog::createIndex`
+— exactly what your raw `INSTALL FTS; LOAD EXTENSION FTS` would have hit on your machine. So the dev track
+now **source-builds `fts`/`vector` from the pinned commit, ships them in `LadybugDB.Native.<rid>`** (flat,
+beside the engine lib — verified present in the published nupkgs), **and the binding pre-seeds the engine's
+`~/.lbdb` extension cache from them at load** (`src/LadybugDB/Interop/ExtensionStaging.cs`). Net for you:
+`INSTALL/LOAD fts`/`vector` resolve the ABI-matched build with no network and no code change on your side.
+Mechanism + the per-bump `LBUG_EXTENSION_VERSION` gate are documented in `docs/upstream-sync.md` §E.
+
+**#2 / #6 now validated against the real `0.18.0` native** (not just the staged host build): both run in the
+green publish Test gate, so `DropFtsIndex_RoundTrip_*` and the relevance-based FTS ranking assertions are
+confirmed on `0.18.0-dev`. If first-open FTS rebuild behavior ever diverges, those tests are the cross-check.
