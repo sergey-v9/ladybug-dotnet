@@ -51,6 +51,12 @@ internal static partial class Native
         // skipped (TryGlobalLoad is a no-op there; the PE loader finds lbug_shared.dll itself).
         PreloadUnixGlobal();
 #endif
+
+        // Seed the engine's extension cache with the ABI-matched fts/vector extensions bundled in the
+        // native package (if any), so INSTALL/LOAD — including raw-Cypher INSTALL/LOAD a consumer issues
+        // directly — resolve our build rather than downloading a version-mismatched one. Best-effort and
+        // never throws; runs once here, before any query can reach the extension path.
+        ExtensionStaging.TrySeedBundledExtensions();
     }
 
     // A static constructor runs before the first access to any Native static member — including the

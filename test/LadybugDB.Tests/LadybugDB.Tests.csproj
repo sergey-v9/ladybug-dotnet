@@ -28,7 +28,10 @@
                       OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
-  <!-- Copy the native library next to the test output if it has been placed under lib/runtimes/<rid>/native. -->
+  <!-- Copy the native library (and the flat-bundled .lbug_extension files + ABI marker) next to the
+       test output if placed under lib/runtimes/<rid>/native. The binding's pre-seed
+       (Interop/ExtensionStaging.cs) finds the extensions here via the runtime probe dirs, so the host
+       Test gate exercises the ABI-matched fts/vector build rather than a downloaded mismatch. -->
   <Target Name="PlaceNativeLibrary" AfterTargets="Build">
     <ItemGroup>
       <_LadybugNative Include="$(NativeLibDir)runtimes\$(TargetRid)\native\*.*" />

@@ -14,8 +14,18 @@ We run **two tracks** off these:
 
 | Track | Pin | Native source | Versions | Where |
 |---|---|---|---|---|
-| **Stable / release** | `version.txt` → latest published engine **release** (now `0.17.1.0` → `v0.17.1`) | downloaded release asset (`gh release download`) | `0.17.1.x` | `ci.yml`, `release.yml` |
-| **Main-tracking / dev** | `upstream-engine.pin` → an engine **commit** (now `d8277a8e5`, engine `0.18.0`) | **built from engine source** at that commit, per RID | `0.18.0-dev.*` prerelease | `github-packages-dev.yml` (fork-only) → GitHub Packages |
+| **Stable / release** | `version.txt` → latest published engine **release** (now `0.17.1.0` → `v0.17.1`) | downloaded release asset (`gh release download`); extensions downloaded by the engine at `INSTALL` | `0.17.1.x` | `ci.yml`, `release.yml` |
+| **Main-tracking / dev** | `upstream-engine.pin` → an engine **commit** (now `d8277a8e5`, engine `0.18.0`) | **built from engine source** at that commit, per RID — `lbug_shared` **and** the `fts`/`vector` extensions | `0.18.0-dev.*` prerelease | `github-packages-dev.yml` (fork-only) → GitHub Packages |
+
+> **Why the dev track also builds the extensions.** Upstream publishes extensions only for **released
+> tags** (the last set is `0.17.0`). A main-tracking native declares a yet-unreleased engine version
+> (`0.18.0`), so the engine's `INSTALL fts` would download the mismatched `0.17.0` extension and crash
+> on an undefined `Catalog::createIndex`. The dev workflow therefore builds `fts`/`vector` from the same
+> engine commit and ships them in `LadybugDB.Native.<rid>` **flat** next to the engine library —
+> `runtimes/<rid>/native/lib<name>.lbug_extension` plus a `lbug_extension_abi_version.txt` marker. At
+> load the binding pre-seeds the engine's cache from those files
+> (`src/LadybugDB/Interop/ExtensionStaging.cs`), so both the binding's helpers and a consumer's raw
+> `INSTALL`/`LOAD EXTENSION` resolve the ABI-matched build with no network. See §E.
 
 The dev track is how the fork "rides main": it ships a prerelease built against a chosen upstream commit
 so we get fixes (e.g. the `d8277a8e5` double-free-on-destroy fix) before they're released.
@@ -73,20 +83,23 @@ Run this whenever you want the fork to move up to a newer upstream `main`.
    git push fork dev
    ```
 8. **CI does the rest.** The push triggers `github-packages-dev.yml`, which:
-   builds `lbug_shared` from `LadybugDB/ladybug@NEW` **per RID** (`win-x64`, `linux-x64`, `linux-arm64`,
-   `osx-x64`, `osx-arm64`), runs the full test suite against the host build, packs the
-   `engine_version-dev.<run>.<attempt>.eng-<engineShort>` prerelease family, publishes it to GitHub
-   Packages, and then the `consume-published` matrix restores the published packages on all five RIDs and
-   runs a Cypher + `fts` + `vector` round-trip against the source-built native. **Green CI = the fork now
-   rides that upstream head.**
+   builds `lbug_shared` **and the `fts`/`vector` extensions** from `LadybugDB/ladybug@NEW` **per RID**
+   (`win-x64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`), stages the extensions + an
+   `extension/ABI_VERSION` marker alongside the native, runs the full test suite against the host build,
+   packs the `engine_version-dev.<run>.<attempt>.eng-<engineShort>` prerelease family, publishes it to
+   GitHub Packages, and then the `consume-published` matrix restores the published packages on all five
+   RIDs and runs a Cypher + `fts` + `vector` round-trip against the source-built native. **Green CI = the
+   fork now rides that upstream head.** (Extensions are ABI-matched and shipped — see §E.)
 9. **(optional) tag** the bindings commit, e.g. `git tag dev/0.18.0-eng-<short> && git push fork --tags`,
    so the exact (binding, engine) pair is recoverable by name.
 
 ### Reproduce the native build locally
 ```
-pwsh scripts/build-native-from-pin.ps1            # builds engine@pin for the host RID + stages it
+pwsh scripts/build-native-from-pin.ps1            # builds engine@pin (lbug_shared + fts/vector) + stages
 dotnet test LadybugDB.slnx -c Release             # run the suite against the source-built native
 ```
+The script stages the extensions under `lib/runtimes/<host-rid>/native/extension/` with an `ABI_VERSION`
+marker, exactly like CI, so the `fts`/`vector` `SearchExtensionsTests` exercise the ABI-matched build.
 Requires CMake + Ninja + a C++ toolchain (MSVC on Windows). See `scripts/build-native-and-test.ps1` for
 the toolchain bootstrap.
 
@@ -148,6 +161,38 @@ existing `List<float>` + `CAST($v AS FLOAT[N])` path, which is pinned by
 
 ---
 
+## E) Shipping ABI-matched `fts`/`vector` extensions (dev track)
+
+The dev track builds the engine from an **unreleased** commit, and upstream builds extensions only for
+released tags — so there is no matching extension to download. The workflow builds and ships them; the
+binding seeds them. The moving parts:
+
+1. **Build (CI / local script).** `-DBUILD_EXTENSIONS="fts;vector"` plus the targets
+   `lbug_fts_extension lbug_vector_extension` in the same configure as `lbug_shared`. `lbug` (the static
+   lib Windows extensions link against) and `lbug_shared` share an OBJECT-library, so the extra Windows
+   target is a link, not a second compile. Outputs land at `engine/extension/<name>/build/lib<name>.lbug_extension`.
+2. **Stage / pack.** Staged **flat** under `runtimes/<rid>/native/` as `lib<name>.lbug_extension` with a
+   `lbug_extension_abi_version.txt` marker — flat because NuGet reliably copies top-level
+   `runtimes/<rid>/native/` files to consumer output, whereas nested subdirs are not guaranteed.
+   `cake/native/LadybugDB.Native.Runtime.csproj` globs `runtimes\<rid>\native\**\*`, so they ship
+   automatically — **no nuspec change**. (The test project copies the same files to its bin so the host
+   Test gate exercises them.)
+3. **Pre-seed (runtime).** `src/LadybugDB/Interop/ExtensionStaging.cs`, invoked once from
+   `Native.EnsureLoaded()`, copies the bundled extensions into
+   `{home}/.lbdb/extension/{ABI_VERSION}/{os}_{arch}/{name}/lib<name>.lbug_extension`
+   (`home` = `%USERPROFILE%`/`$HOME`). The engine's `INSTALL` **skips the download when that file
+   exists**, and `LOAD EXTENSION <name>` loads it — so even a consumer's raw-Cypher `INSTALL/LOAD` gets
+   the matched build. Best-effort: failure leaves the engine's normal download path intact.
+
+**Pin-bump gate (`ABI_VERSION` = engine `LBUG_EXTENSION_VERSION`).** The cache directory the engine reads
+is keyed by the engine's compile-time `LBUG_EXTENSION_VERSION` (in engine `CMakeLists.txt`, currently
+`0.17.0`), **not** `engine_version`. CI and the local script read it from the engine source at build
+time, so a bump is picked up automatically — but if a future engine bump changes that constant, confirm a
+green `fts`/`vector` round-trip after advancing the pin (the `SearchExtensionsTests` are the cross-check;
+they FAIL, not skip, on an ABI/undefined-symbol error).
+
+---
+
 ## Current state (2026-06-28)
 
 - **Pin:** `upstream-engine.pin` → `LadybugDB/ladybug@d8277a8e5` (`v0.17.1-102-gd8277a8e5`, engine `0.18.0`).
@@ -156,4 +201,7 @@ existing `List<float>` + `CAST($v AS FLOAT[N])` path, which is pinned by
   binding-relevant upstream change is the `connection.cpp`/`database.cpp` double-free-on-destroy fix
   (behavioral, picked up automatically by the source-built native).
 - **Stable pin (`version.txt`):** `0.17.1.0` (latest published release) — unchanged.
+- **Extensions:** the dev track now source-builds + ships `fts`/`vector` (ABI `0.17.0`) and the binding
+  pre-seeds them (§E) — fixing the `0.18.0`-engine-vs-`0.17.0`-extension skew that was failing the publish
+  Test gate.
 - Verification of the source-built native across all 5 RIDs runs in CI (the dev workflow + `consume-published`).

@@ -83,54 +83,94 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install ninja -y
 
-      # Linux: build the shared lib via the engine's own `make GEN=Ninja` wrapper (the recipe its
-      # precompiled-bin-workflow uses to produce liblbug.so — it wires OpenSSL/codegen correctly).
-      - name: Build (Linux, engine make wrapper)
-        if: runner.os == 'Linux'
-        working-directory: engine
-        env:
-          CC: gcc-13
-          CXX: g++-13
-        run: |
-          set -euo pipefail
-          make GEN=Ninja
-          make install
+      # Warm a compiler cache across dev pushes (Linux/macOS). The engine's CMake honours the
+      # CMAKE_*_COMPILER_LAUNCHER env vars, so wiring ccache is just exporting them in the build step.
+      # Windows (MSVC) is intentionally left uncached this round — sccache+MSVC needs /Z7 debug info
+      # and is a separate, riskier change; Windows is the critical-path RID and its speedup is a follow-up.
+      - name: Set up ccache (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          key: dev-native-${{ matrix.rid }}
+          max-size: 2G
 
-      # macOS/Windows: a direct shared-lib cmake build (these already build green from source).
-      - name: Build (macOS/Windows)
-        if: runner.os != 'Linux'
+      # One configure per RID builds the shared C-API library AND the fts/vector extensions. `lbug`
+      # (the static lib the Windows extensions link against) and `lbug_shared` share an OBJECT-library
+      # (src/CMakeLists.txt: both built from $<TARGET_OBJECTS:...>), so the extra Windows target costs a
+      # link, not a second compile. Direct CMake on every platform now that the Linux deps
+      # (OpenSSL/pkg-config/python3) are installed — the engine `make` wrapper added nothing
+      # CMake-specific beyond the generator, and building only these targets drops the shell/CLI/static
+      # build the old Linux `make install` did (most of the Linux speedup).
+      - name: Build engine + fts/vector extensions
         shell: bash
         working-directory: engine
         run: |
           set -euo pipefail
+          extra=()
+          if [ "${RUNNER_OS}" = "Linux" ]; then
+            export CC=gcc-13 CXX=g++-13
+          fi
+          if [ "${RUNNER_OS}" != "Windows" ]; then
+            export CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            # Linux/macOS extensions use runtime dynamic lookup (RTLD_GLOBAL / -undefined dynamic_lookup),
+            # so the static lib is unneeded there — drop it for speed. On Windows the extensions link
+            # against the static `lbug` target (no dynamic lookup), so leave BUILD_STATIC_LBUG at its
+            # default (ON), matching the engine's own extension build.
+            extra+=("-DBUILD_STATIC_LBUG=OFF")
+          fi
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHELL=OFF -DBUILD_SINGLE_FILE_HEADER=OFF -DBUILD_STATIC_LBUG=OFF -DBUILD_TESTS=OFF \
+            -DBUILD_SHELL=OFF -DBUILD_SINGLE_FILE_HEADER=OFF -DBUILD_TESTS=OFF \
+            -DBUILD_EXTENSIONS="fts;vector" \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            "${extra[@]}" \
             .
-          cmake --build build --target lbug_shared
+          cmake --build build --target lbug_shared lbug_fts_extension lbug_vector_extension
 
-      - name: Stage the built native under runtimes/<rid>/native
+      - name: Stage native + ABI-matched fts/vector extensions under runtimes/<rid>/native
         shell: bash
         run: |
           set -euo pipefail
           case "${{ matrix.rid }}" in
-            win-*)   ext=dll;   canonical=lbug_shared.dll;  searchdir=engine/build/src ;;
-            osx-*)   ext=dylib; canonical=liblbug.dylib;    searchdir=engine/build/src ;;
-            linux-*) ext=so;    canonical=liblbug.so;       searchdir=engine/install ;;
+            win-*) ext=dll;   canonical=lbug_shared.dll ;;
+            osx-*) ext=dylib; canonical=liblbug.dylib ;;
+            *)     ext=so;    canonical=liblbug.so ;;
           esac
-          # Pick the largest produced *lbug*.<ext>* regular file (the real shared object; the Linux
-          # install/ ships the SONAME symlink chain liblbug.so -> .so.0 -> .so.0.x.y).
-          built=$(find "$searchdir" -type f -name "*lbug*.${ext}*" ! -name '*.lib' 2>/dev/null | xargs ls -S 2>/dev/null | head -1)
-          [ -n "$built" ] || { echo "no *lbug*.${ext} produced under $searchdir" >&2; find "$searchdir" -name '*lbug*' 2>/dev/null | head -50; exit 1; }
-          mkdir -p "out/runtimes/${{ matrix.rid }}/native"
-          cp "$built" "out/runtimes/${{ matrix.rid }}/native/${canonical}"
-          echo "staged $built -> out/runtimes/${{ matrix.rid }}/native/${canonical}"
+          dest="out/runtimes/${{ matrix.rid }}/native"
+          mkdir -p "$dest"
+
+          # Shared library: largest real *lbug*.<ext>* under the build tree (CMake emits the SONAME
+          # chain liblbug.so -> .so.0 -> .so.0.x.y; we want the real file, under the canonical name).
+          built=$(find engine/build/src -type f -name "*lbug*.${ext}*" ! -name '*.lib' 2>/dev/null | xargs ls -S 2>/dev/null | head -1)
+          [ -n "$built" ] || { echo "no *lbug*.${ext} produced" >&2; find engine/build -name '*lbug*' 2>/dev/null | head -50; exit 1; }
+          cp "$built" "$dest/${canonical}"
+          echo "staged native $built -> $dest/${canonical}"
+
+          # fts/vector extensions, built from the SAME engine commit so their ABI matches the engine.
+          # The published 0.17.0 extensions do NOT match a 0.18.0-dev engine — they crash with an
+          # undefined `Catalog::createIndex`. The engine resolves `INSTALL`/`LOAD EXTENSION <name>` from
+          # ~/.lbdb/extension/<EXT_VER>/<platform>/<name>/lib<name>.lbug_extension; we ship these FLAT next
+          # to the native (NuGet reliably copies top-level runtimes/<rid>/native files to consumer output;
+          # nested subdirs are not guaranteed) so the binding can pre-seed that cache (Interop/
+          # ExtensionStaging.cs). EXT_VER is the engine's compile-time LBUG_EXTENSION_VERSION — re-read it
+          # each pin bump; it is NOT engine_version.
+          for name in fts vector; do
+            f=$(find "engine/extension/${name}/build" -type f -name "lib${name}.lbug_extension" 2>/dev/null | head -1)
+            [ -n "$f" ] || { echo "no lib${name}.lbug_extension produced" >&2; find engine/extension -name '*.lbug_extension' 2>/dev/null | head; exit 1; }
+            cp "$f" "$dest/lib${name}.lbug_extension"
+            echo "staged extension $f"
+          done
+          EXT_VER=$(grep -oE 'LBUG_EXTENSION_VERSION="[^"]+"' engine/CMakeLists.txt | head -1 | sed -E 's/.*="([^"]+)"/\1/')
+          [ -n "$EXT_VER" ] || { echo "could not read LBUG_EXTENSION_VERSION from engine/CMakeLists.txt" >&2; exit 1; }
+          printf '%s' "$EXT_VER" > "$dest/lbug_extension_abi_version.txt"
+          echo "extension ABI version: $EXT_VER"
+          find "$dest" -type f -print
 
       - name: Upload native artifact
         uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.rid }}
+          # Flat layout: native + the two .lbug_extension files + the ABI marker, all at native/ root.
           path: out/runtimes/${{ matrix.rid }}/native/*
           if-no-files-found: error
           retention-days: 3
@@ -171,6 +211,7 @@ jobs:
           for d in staged/native-*; do
             rid="${d##*/native-}"
             mkdir -p "lib/runtimes/${rid}/native"
+            # Flat artifact: native + the two .lbug_extension files + the ABI marker.
             cp "$d"/* "lib/runtimes/${rid}/native/"
           done
           find lib/runtimes -type f -print
