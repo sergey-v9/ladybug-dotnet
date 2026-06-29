@@ -156,14 +156,23 @@ jobs:
         with:
           pattern: native-*
           path: staged
-          merge-multiple: true
 
       - name: Stage natives into lib/runtimes (so Cake reuses them, no release download)
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p lib
-          cp -r staged/runtimes lib/runtimes
+          # Each native-<rid> artifact holds just the canonical shared lib at its root
+          # (upload-artifact collapses single-file uploads to the bare file name), so the
+          # runtimes/<rid>/native/ layout the Cake packaging step expects must be rebuilt
+          # here. Downloading without merge-multiple keeps every artifact in its own
+          # staged/native-<rid>/ directory, which encodes the RID.
+          shopt -s nullglob
+          mkdir -p lib/runtimes
+          for d in staged/native-*; do
+            rid="${d##*/native-}"
+            mkdir -p "lib/runtimes/${rid}/native"
+            cp "$d"/* "lib/runtimes/${rid}/native/"
+          done
           find lib/runtimes -type f -print
 
       - name: Test gate (host RID) against the source-built native
