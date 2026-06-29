@@ -135,3 +135,73 @@ DDL/queries remains the supported path, and binding `List<float>` as `$query_vec
 
 **De-scoped, per your note:** no typed FTS/vector index helpers, no BM25/tokenizer/stemmer/stopword knobs
 in the binding (engine defaults preserved for Python parity), no relationship-FTS helper.
+
+---
+
+## Consumer wishes — 2026-06-29 (Graphiti, the reference consumer)
+
+Context: Graphiti analyzed the 24 binding commits since its pin (`53e5ab5` / `0.17.1-dev.2.1`). The work is
+excellent and almost entirely **perf/allocation** (bind-pooling, pooled struct/map/list staging,
+fast-path scalar row materialization, typed `FlatTuple` accessors, pre-sized mappers) — exactly the
+direction we want; please keep going. The C API stayed byte-identical, so those land for Graphiti as a
+free drop-in. These are our prioritized wishes for the next round.
+
+### 1. (TOP, blocking us) Ship a green `0.18.0-dev` cross-RID publish
+
+The dev feed reschemed to build natives **from source** at the pinned engine commit (`d77c9de` +
+`upstream-engine.pin` → engine `d8277a8e5`, `0.18.0-dev.*.eng-<short>`). But the publish run is **red**:
+the **linux-x64 and linux-arm64 from-source native builds fail**, and the publish job needs all RIDs, so
+**no `0.18.0-dev.*` package exists on the feed**. macOS RIDs already pass — only the Linux source build
+is the blocker. Until a green cross-RID publish lands, Graphiti **cannot adopt any engine-level fix**: the
+`d8277a8e5` double-free-on-destroy fix, the delete/checkpoint CSR SIGSEGV fix, and the new `DROP_FTS_INDEX`
+DDL are all out of reach. This is the single highest-leverage thing for us right now: please get the Linux
+from-source native build green and publish one full `0.18.0-dev` set.
+
+### 2. Add a `DROP_FTS_INDEX` round-trip test before we rewrite our FTS-idempotency workaround
+
+Graphiti makes FTS-index creation idempotent across reopen by **catching the `"Index … already exists"`
+`BinderException` by message** — brittle. The engine now has `CALL DROP_FTS_INDEX` (and `DROP INDEX [IF
+EXISTS]`), which would let us do a clean explicit drop-then-create. Before we switch, please add a
+`DROP_FTS_INDEX` round-trip to `SearchExtensionsTests` that **pins the behavior we'll depend on**: (a) it
+cleans up the auxiliary docs/terms/appears-in tables (generic `DROP INDEX` does **not** — verify which one
+to use for FTS), and (b) it **throws on a missing index** (so a naive drop-then-create is *not* idempotent
+and we'll still need a guard). With that test pinning the contract, we can replace the message-catch
+safely. (This is gated on #1 — the DDL only reaches us via a published `0.18.0-dev`.)
+
+### 3. (Engine ask) First-class fixed-size `FLOAT[N]` parameter binding — still our one removable workaround
+
+Re-raising the deferred #2 from above. It's the one Graphiti workaround an API addition would genuinely
+remove: the per-call `CAST($search_vector AS FLOAT[<dim>])` templated into the query string at 3 sites in
+`LadybugSearchStatementBuilder.cs`. As you noted, this needs **engine** surface first — a fixed-`ARRAY`
+value constructor in `lbug.h` (today only `lbug_value_create_list`), then a typed binding helper so a
+bound value carries its own `FLOAT[N]` logical type. Not blocking (the `List<float>` + `CAST` path is
+vector-test-pinned and works), but it's the cleanest single ergonomics win for us — keep it on the
+engine-feature backlog.
+
+### 4. A first-class prepare-once / bind-many convenience on `Connection`
+
+We re-`Prepare` the identical Cypher per call in our hot loops (bulk node/edge save, by-uuid delete,
+rank-per-uuid). We can already prepare-once/bind-many with the public `Connection.Prepare` /
+`PreparedStatement.Bind`, and we're planning that refactor on our side. But a first-class
+`Connection.ExecuteMany(cypher, IEnumerable<paramMap>)` (or a documented re-bind pattern) would make the
+prepared-statement reuse the **obvious default** for every consumer and put your pooled-bind perf work
+(`84417a7`, `52042e5`) on the hot repeated-shape path where it pays most. Nice-to-have, not blocking.
+
+### 5. A one-line "consumer impact" note per bump in `upstream-engine.pin`
+
+`upstream-engine.pin` already asserts the C API is byte-identical — thank you, that's what lets us trust
+"bump + verify." A structured one-liner per bump would save us re-deriving the rest each cycle, e.g.:
+`consumer_impact: interop=none; fts_scoring=unchanged; new_ddl=DROP_FTS_INDEX`. This cycle we had to
+manually confirm the only interop-dir touch was a harmless `Native.cs` test-seam cleanup; a single line
+would have made that free.
+
+### 6. Heads-up (not an ask): FTS behavior may shift at `0.18.0`
+
+When we adopt a source-built `0.18.0-dev` native, we expect to re-verify FTS result ordering: the engine's
+FTS insert-side fix (`48adaeb`) was partially reverted (`a0c762d`), and the FTS checkpoint signature
+(`af55129`) + delete-side bookkeeping (`bdd64e6`) changed — so BM25 ordering may move slightly and FTS
+indexes may need a rebuild on first open. If `SearchExtensionsTests` can pin the expected post-`0.18.0`
+FTS ranking, that's our cross-check. Just flagging so it's on your radar with #1.
+
+— Graphiti. (The bump/adopt/steer loop on our side is documented in our
+`.agents/notes/ladybug-sync-procedure.md`; every workaround we carry shows up here as a standing ask.)
