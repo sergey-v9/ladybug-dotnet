@@ -106,6 +106,28 @@ use one connection per concurrent operation (or the connection pool guidance in 
 (MAP). DECIMAL reads return a real `decimal` when it fits and a lossless `LadybugDecimal` otherwise —
 never a bare string.
 
+### Bulk: prepare once, bind many
+
+For a hot loop that runs the **same** Cypher with different parameters (bulk insert/update, by-key
+delete, scalar-per-key reads), `Connection.ExecuteMany` prepares the statement **once** and re-binds
+each parameter set on it — so the query is planned a single time and the pooled-bind fast path runs
+on every iteration. Each `QueryResult` is disposed for you. An empty sequence is a no-op.
+
+```csharp
+// Write path: one prepare, N executes; results disposed internally.
+conn.ExecuteMany(
+    "CREATE (:Person {name: $name, age: $age})",
+    people.Select(p => new Dictionary<string, object?> { ["name"] = p.Name, ["age"] = p.Age }));
+
+// Read path: project one value per parameter set, in input order.
+IReadOnlyList<long?> ages = conn.ExecuteMany(
+    "MATCH (p:Person) WHERE p.name = $name RETURN p.age",
+    names.Select(n => new Dictionary<string, object?> { ["name"] = n }),
+    r => (long?)r.Rows().FirstOrDefault()?[0]);
+
+// Async equivalents honor a CancellationToken: ExecuteManyAsync(...) / ExecuteManyAsync(..., selector, ct).
+```
+
 ## Engine extensions
 
 Ladybug extensions (e.g. `json`, `fts`, `vector`, `httpfs`) install and load through the query engine.
