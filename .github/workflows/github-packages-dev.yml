@@ -143,6 +143,14 @@ jobs:
             .
           cmake --build build --target lbug_shared lbug_fts_extension lbug_vector_extension
 
+      # Measure the actual cache hit rate + on-disk cache size so cache tuning (size, keys) is data-driven
+      # rather than guessed. Windows (~53m) is the one RID whose warm speedup we can't see without this.
+      - name: Compiler cache stats
+        if: always()
+        shell: bash
+        run: |
+          if [ "${RUNNER_OS}" = "Windows" ]; then sccache --show-stats || true; else ccache -s || true; fi
+
       - name: Stage native + ABI-matched fts/vector extensions under runtimes/<rid>/native
         shell: bash
         run: |
