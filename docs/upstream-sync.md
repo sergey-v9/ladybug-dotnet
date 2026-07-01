@@ -14,8 +14,8 @@ We run **two tracks** off these:
 
 | Track | Pin | Native source | Versions | Where |
 |---|---|---|---|---|
-| **Stable / release** | `version.txt` → latest published engine **release** (now `0.17.1.0` → `v0.17.1`) | downloaded release asset (`gh release download`); extensions downloaded by the engine at `INSTALL` | `0.17.1.x` | `ci.yml`, `release.yml` |
-| **Main-tracking / dev** | `upstream-engine.pin` → an engine **commit** (now `d8277a8e5`, engine `0.18.0`) | **built from engine source** at that commit, per RID — `lbug_shared` **and** the `fts`/`vector` extensions | `0.18.0-dev.*` prerelease | `github-packages-dev.yml` (fork-only) → GitHub Packages |
+| **Stable / release** | `version.txt` → latest published engine **release** (now `0.18.0.0` → `v0.18.0`) | downloaded release asset (`gh release download`); extensions downloaded by the engine at `INSTALL` | `0.18.0.x` | `ci.yml`, `release.yml` |
+| **Main-tracking / dev** | `upstream-engine.pin` → an engine **commit** (now `v0.18.0` / `0cda4fff`, engine `0.18.0`) | **built from engine source** at that commit, per RID — `lbug_shared` **and** the `fts`/`vector` extensions | `0.18.0-dev.*` prerelease | `github-packages-dev.yml` (fork-only) → GitHub Packages |
 
 > **Why the dev track also builds the extensions.** Upstream publishes extensions only for **released
 > tags** (the last set is `0.17.0`). A main-tracking native declares a yet-unreleased engine version
@@ -193,18 +193,21 @@ they FAIL, not skip, on an ABI/undefined-symbol error).
 
 ---
 
-## Current state (2026-06-28)
+## Current state (2026-07-01)
 
-- **Pin:** `upstream-engine.pin` → `LadybugDB/ladybug@d8277a8e5` (`v0.17.1-102-gd8277a8e5`, engine `0.18.0`).
-- **C API check:** `git diff v0.17.1 d8277a8e5 -- src/include/c_api/` is **empty** — the header is
-  byte-identical across the 102 commits since `v0.17.1`. **No interop changes were needed**; the only
-  binding-relevant upstream change is the `connection.cpp`/`database.cpp` double-free-on-destroy fix
-  (behavioral, picked up automatically by the source-built native).
-- **Stable pin (`version.txt`):** `0.17.1.0` (latest published release) — unchanged.
-- **Extensions:** the dev track now source-builds + ships `fts`/`vector` (ABI `0.17.0`) and the binding
-  pre-seeds them (§E) — fixing the `0.18.0`-engine-vs-`0.17.0`-extension skew that was failing the publish
-  Test gate.
-- **First green cross-RID dev publish:** `0.18.0-dev.18.1.eng-d8277a8e5` (run #18) — all five RIDs green
-  through `build-native` → `publish` → `consume-published` (Cypher + fts + vector round-trip on each), and
-  the `.lbug_extension` files are verified present in the published `LadybugDB.Native.<rid>` nupkgs.
+- **Upstream released `v0.18.0`** (2026-07-01, commit `0cda4fff`). Both tracks now point at it.
+- **Pin:** `upstream-engine.pin` → `LadybugDB/ladybug@0cda4fff` (`v0.18.0`, engine `0.18.0`) — pinned **at
+  the release** (13 commits over the previous `d8277a8e5` main pin).
+- **C API check:** `git diff v0.17.1 v0.18.0 -- src/include/c_api/` is **empty** — the header is
+  byte-identical from `v0.17.1` through `v0.18.0`. **No interop changes needed**; the binding is
+  source-compatible. Notable engine fixes picked up over the prior pin: ANY-graph INSERT crash on
+  property strings >12 chars, overflow-page accounting, hash-index storage accounting.
+- **Stable pin (`version.txt`):** `0.18.0.0` → downloads the `v0.18.0` release natives.
+- **Extension ABI:** `LBUG_EXTENSION_VERSION` bumped `0.17.0 → 0.18.0`, so upstream now publishes matching
+  `0.18.0` extensions. The dev track still source-builds + ships `fts`/`vector` and pre-seeds them (§E) —
+  the ABI marker auto-updates to `0.18.0` — which keeps it correct the moment the pin next rides past a
+  release again. Expect FTS index rebuild on first `0.18.0` open.
+- **Prior milestone:** first green cross-RID dev publish `0.18.0-dev.18.1.eng-d8277a8e5` (run #18, all five
+  RIDs green through `build-native` → `publish` → `consume-published`; extension files verified in the
+  published nupkgs). The `v0.18.0` bump republishes on the next `dev` push.
 - Verification of the source-built native across all 5 RIDs runs in CI (the dev workflow + `consume-published`).

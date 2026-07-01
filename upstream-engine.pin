@@ -1,23 +1,24 @@
 # Upstream engine pin — main-tracking dev feed.
 #
 # This fork's `dev` packages (0.18.0-dev.* prereleases on GitHub Packages) are built against the
-# LadybugDB/ladybug engine SOURCE at the commit below — so they ride upstream `main` and carry fixes
-# before they are released. Advance this pin with the runbook in docs/upstream-sync.md.
+# LadybugDB/ladybug engine SOURCE at the commit below. It normally rides upstream `main` (ahead of
+# releases); right now it is pinned AT the v0.18.0 release commit, so the dev feed and the stable
+# release track the same engine. Advance this pin with the runbook in docs/upstream-sync.md.
 #
 # The STABLE/release package family is INDEPENDENT of this file: it is pinned by version.txt to the
-# latest published engine RELEASE (currently v0.17.1) and ships prebuilt release natives.
+# latest published engine RELEASE (currently v0.18.0) and ships prebuilt release natives.
 #
 # Format: key=value, one per line. Consumed by .github/workflows/github-packages-dev.yml and
 # scripts/build-native-from-pin.ps1.
 
 repo=LadybugDB/ladybug
-commit=d8277a8e5c805f79115f8869d456bde23a0e8ea5
-describe=v0.17.1-102-gd8277a8e5
+commit=0cda4fffcebb4a52cc24198462901ad28e2d5b66
+describe=v0.18.0
 engine_version=0.18.0
 capi_stable_since=v0.17.1
-updated=2026-06-28
-note=C API header (src/include/c_api/lbug.h) is byte-identical v0.17.1..this commit; binding interop needs no changes. Picked up upstream fix d8277a8e5 "narrow solution for double free crash on destroy".
+updated=2026-07-01
+note=Pinned AT the v0.18.0 release (0cda4fff). C API header (src/include/c_api/lbug.h) is byte-identical v0.17.1..v0.18.0 — binding interop needs no changes. 13 commits over the previous pin (d8277a8e5): extension version bumped to 0.18.0, plus crash/accounting fixes. Extensions are still source-built + shipped by the dev feed (ABI marker now 0.18.0).
 # consumer_impact: one-line, structured summary of what THIS pin changes for downstream consumers
 # (e.g. Graphiti), so they don't re-derive it each cycle. Required on every bump (see docs/upstream-sync.md).
 # Fields: interop=<none|...>; fts_scoring=<...>; new_ddl=<...>; fixes=<...>; note=<...>
-consumer_impact=interop=none; fts_scoring=unchanged-from-v0.17.1; new_ddl=DROP_FTS_INDEX,DROP_INDEX_IF_EXISTS; fixes=double-free-on-destroy,delete/checkpoint-CSR-SIGSEGV; note=re-verify FTS ordering on first 0.18.0 open (insert-fix partly reverted)
+consumer_impact=interop=none; fts_scoring=unchanged; new_ddl=NONE (SHOW_INDEXES now lists built-in PK indexes); fixes=ANY-graph-INSERT-crash-on-property-strings>12chars,overflow-page-accounting,hash-index-storage-accounting; note=extension ABI bumped 0.17.0->0.18.0 (published 0.18.0 extensions now exist; dev feed still ships ABI-matched source builds); re-verify FTS ordering + expect FTS index rebuild on first 0.18.0 open
