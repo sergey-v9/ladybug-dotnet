@@ -94,17 +94,20 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install ninja -y
 
-      # Warm a compiler cache across dev pushes. The engine's CMake honours the CMAKE_*_COMPILER_LAUNCHER
-      # env vars, so wiring it is just exporting them in the build step. Windows uses the MSVC-capable
-      # sccache variant: our Release build emits no /Zi PDB (the engine sets no debug-info flags), so
-      # sccache caches its object files cleanly — the lever for the ~56m win-x64 build, which the
-      # step-timing breakdown shows is 100% compile. Linux/macOS use ccache.
-      - name: Set up compiler cache (ccache / sccache)
+      # Warm a compiler cache across dev pushes. CRITICAL: the engine's own CMakeLists.txt does
+      # `find_program(ccache)` (then sccache) and `set(CMAKE_*_COMPILER_LAUNCHER ...)`, which OVERRIDES
+      # whatever we export — so the cache the build actually uses is whichever the engine finds, and it
+      # only persists if that tool's cache dir is the one this action saves. windows-latest ships a
+      # system ccache, so on Windows the engine picked that ccache while we were persisting sccache's
+      # dir (CCACHE_DIR vs SCCACHE_DIR): the engine's ccache ran with a non-persistent default dir →
+      # 0 hits, full ~54m every run (measured: 1094 compiles, sccache saw 9). Using the ccache variant
+      # on every RID makes the action set CCACHE_DIR to the persisted cache the engine's ccache reads.
+      - name: Set up compiler cache (ccache)
         # Pinned to a patch: v1.2.23 runs on Node 24, but the floating `@v1` tag still points at an
         # older Node-20 release (GitHub deprecation warning). Bump when the maintainer moves `@v1`.
         uses: hendrikmuhs/ccache-action@v1.2.23
         with:
-          variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
+          variant: ccache
           key: dev-native-${{ matrix.rid }}
           max-size: 2G
 
@@ -122,9 +125,10 @@ jobs:
           set -euo pipefail
           extra=()
           if [ "${RUNNER_OS}" = "Windows" ]; then
-            # sccache caches the MSVC Release compiles (Release emits no /Zi PDB, so sccache is happy).
-            # Windows keeps the static `lbug` (its extensions link against it), so no BUILD_STATIC_LBUG=OFF.
-            export CMAKE_C_COMPILER_LAUNCHER=sccache CMAKE_CXX_COMPILER_LAUNCHER=sccache
+            # The engine auto-detects ccache and sets the launcher itself; this export is a harmless
+            # fallback. Windows keeps the static `lbug` (its extensions link against it), so no
+            # BUILD_STATIC_LBUG=OFF. ccache 4.x caches MSVC cl.exe Release compiles (no /Zi PDB).
+            export CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache
           else
             export CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache
             # Linux/macOS extensions use runtime dynamic lookup (RTLD_GLOBAL / -undefined dynamic_lookup),
@@ -148,8 +152,7 @@ jobs:
       - name: Compiler cache stats
         if: always()
         shell: bash
-        run: |
-          if [ "${RUNNER_OS}" = "Windows" ]; then sccache --show-stats || true; else ccache -s || true; fi
+        run: ccache -s || true
 
       - name: Stage native + ABI-matched fts/vector extensions under runtimes/<rid>/native
         shell: bash
