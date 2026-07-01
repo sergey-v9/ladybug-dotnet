@@ -18,6 +18,9 @@ on:
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
+  # Manual trigger — lets us re-run to measure a warm compiler cache without a dummy push
+  # (ignores paths-ignore, which only applies to push events).
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -91,16 +94,17 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install ninja -y
 
-      # Warm a compiler cache across dev pushes (Linux/macOS). The engine's CMake honours the
-      # CMAKE_*_COMPILER_LAUNCHER env vars, so wiring ccache is just exporting them in the build step.
-      # Windows (MSVC) is intentionally left uncached this round — sccache+MSVC needs /Z7 debug info
-      # and is a separate, riskier change; Windows is the critical-path RID and its speedup is a follow-up.
-      - name: Set up ccache (Linux/macOS)
-        if: runner.os != 'Windows'
+      # Warm a compiler cache across dev pushes. The engine's CMake honours the CMAKE_*_COMPILER_LAUNCHER
+      # env vars, so wiring it is just exporting them in the build step. Windows uses the MSVC-capable
+      # sccache variant: our Release build emits no /Zi PDB (the engine sets no debug-info flags), so
+      # sccache caches its object files cleanly — the lever for the ~56m win-x64 build, which the
+      # step-timing breakdown shows is 100% compile. Linux/macOS use ccache.
+      - name: Set up compiler cache (ccache / sccache)
         # Pinned to a patch: v1.2.23 runs on Node 24, but the floating `@v1` tag still points at an
         # older Node-20 release (GitHub deprecation warning). Bump when the maintainer moves `@v1`.
         uses: hendrikmuhs/ccache-action@v1.2.23
         with:
+          variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
           key: dev-native-${{ matrix.rid }}
           max-size: 2G
 
@@ -117,16 +121,18 @@ jobs:
         run: |
           set -euo pipefail
           extra=()
-          if [ "${RUNNER_OS}" = "Linux" ]; then
-            export CC=gcc-13 CXX=g++-13
-          fi
-          if [ "${RUNNER_OS}" != "Windows" ]; then
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            # sccache caches the MSVC Release compiles (Release emits no /Zi PDB, so sccache is happy).
+            # Windows keeps the static `lbug` (its extensions link against it), so no BUILD_STATIC_LBUG=OFF.
+            export CMAKE_C_COMPILER_LAUNCHER=sccache CMAKE_CXX_COMPILER_LAUNCHER=sccache
+          else
             export CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache
             # Linux/macOS extensions use runtime dynamic lookup (RTLD_GLOBAL / -undefined dynamic_lookup),
-            # so the static lib is unneeded there — drop it for speed. On Windows the extensions link
-            # against the static `lbug` target (no dynamic lookup), so leave BUILD_STATIC_LBUG at its
-            # default (ON), matching the engine's own extension build.
+            # so the static lib is unneeded there — drop it for speed.
             extra+=("-DBUILD_STATIC_LBUG=OFF")
+            if [ "${RUNNER_OS}" = "Linux" ]; then
+              export CC=gcc-13 CXX=g++-13
+            fi
           fi
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
