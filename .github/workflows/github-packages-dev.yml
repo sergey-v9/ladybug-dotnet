@@ -83,6 +83,9 @@ jobs:
 
       - name: Set up MSVC (Windows)
         if: runner.os == 'Windows'
+        # Knowingly Node 20: the latest release (v1.13.0) still targets node20, so this is the one
+        # action that keeps GitHub's node20-deprecation warning on the Windows job until upstream ships
+        # a node24 release. Nothing to bump yet; don't "fix" by pinning — no node24 version exists.
         uses: ilammy/msvc-dev-cmd@v1
       - name: Install Ninja (Windows)
         if: runner.os == 'Windows'
@@ -94,7 +97,9 @@ jobs:
       # and is a separate, riskier change; Windows is the critical-path RID and its speedup is a follow-up.
       - name: Set up ccache (Linux/macOS)
         if: runner.os != 'Windows'
-        uses: hendrikmuhs/ccache-action@v1
+        # Pinned to a patch: v1.2.23 runs on Node 24, but the floating `@v1` tag still points at an
+        # older Node-20 release (GitHub deprecation warning). Bump when the maintainer moves `@v1`.
+        uses: hendrikmuhs/ccache-action@v1.2.23
         with:
           key: dev-native-${{ matrix.rid }}
           max-size: 2G
@@ -172,7 +177,7 @@ jobs:
           find "$dest" -type f -print
 
       - name: Upload native artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.rid }}
           # Flat layout: native + the two .lbug_extension files + the ABI marker, all at native/ root.
@@ -197,7 +202,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Download source-built natives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: native-*
           path: staged
