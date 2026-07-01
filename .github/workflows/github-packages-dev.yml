@@ -60,7 +60,7 @@ jobs:
           - { rid: linux-arm64, os: ubuntu-24.04-arm }
           - { rid: win-x64,     os: windows-latest }
           - { rid: osx-x64,     os: macos-15-intel }
-          - { rid: osx-arm64,   os: macos-latest }
+          - { rid: osx-arm64,   os: macos-15 }
     steps:
       - name: Checkout engine @ pin
         uses: actions/checkout@v6
@@ -82,14 +82,31 @@ jobs:
 
       - name: Install CMake + Ninja (macOS)
         if: runner.os == 'macOS'
-        run: brew install cmake ninja
+        # The runner image pre-taps aws/tap, which now emits an "untrusted tap" warning on every
+        # `brew install`. We only need cmake/ninja from homebrew/core, so drop that tap to silence the
+        # noise without disabling Homebrew's trust checks globally.
+        run: |
+          brew untap aws/tap 2>/dev/null || true
+          brew install cmake ninja
 
       - name: Set up MSVC (Windows)
         if: runner.os == 'Windows'
-        # Knowingly Node 20: the latest release (v1.13.0) still targets node20, so this is the one
-        # action that keeps GitHub's node20-deprecation warning on the Windows job until upstream ships
-        # a node24 release. Nothing to bump yet; don't "fix" by pinning — no node24 version exists.
-        uses: ilammy/msvc-dev-cmd@v1
+        # Node-free MSVC dev environment (ilammy/msvc-dev-cmd has no Node-24 release, so it emits the
+        # Node-20 deprecation warning). This does what that action does internally, minus the Node action:
+        # find VS via vswhere, run vcvars64.bat, and export the resulting env to GITHUB_ENV so the later
+        # bash build step finds cl.exe + INCLUDE/LIB. Only well-formed KEY=VALUE lines are exported.
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products '*' -property installationPath | Select-Object -First 1
+          if (-not $vsPath) { throw "vswhere found no Visual Studio installation" }
+          $vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvars64.bat'
+          if (-not (Test-Path $vcvars)) { throw "vcvars64.bat not found at $vcvars" }
+          cmd /c "`"$vcvars`" && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') {
+              "$($matches[1])=$($matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            }
+          }
       - name: Install Ninja (Windows)
         if: runner.os == 'Windows'
         run: choco install ninja -y
@@ -291,7 +308,7 @@ jobs:
             rid: win-x64
           - os: macos-15-intel
             rid: osx-x64
-          - os: macos-latest
+          - os: macos-15
             rid: osx-arm64
     env:
       PACKAGE_VERSION: ${{ needs.publish.outputs.package-version }}
