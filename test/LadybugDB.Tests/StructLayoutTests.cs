@@ -173,6 +173,7 @@ public sealed class InteropDeclarationParity
         var lib = EntryPoints("Native.LibraryImport.cs");
         string[] required =
         {
+            "lbug_connection_get_pushed_sql",
             "lbug_connection_interrupt",
             "lbug_connection_set_query_timeout",
             "lbug_connection_set_max_num_thread_for_exec",

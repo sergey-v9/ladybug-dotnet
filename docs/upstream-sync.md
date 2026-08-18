@@ -14,14 +14,13 @@ We run **two tracks** off these:
 
 | Track | Pin | Native source | Versions | Where |
 |---|---|---|---|---|
-| **Stable / release** | `version.txt` → latest published engine **release** (now `0.18.0.0` → `v0.18.0`) | downloaded release asset (`gh release download`); extensions downloaded by the engine at `INSTALL` | `0.18.0.x` | `ci.yml`, `release.yml` |
-| **Main-tracking / dev** | `upstream-engine.pin` → an engine **commit** (now `v0.18.0` / `0cda4fff`, engine `0.18.0`) | **built from engine source** at that commit, per RID — `lbug_shared` **and** the `fts`/`vector` extensions | `0.18.0-dev.*` prerelease | `github-packages-dev.yml` (fork-only) → GitHub Packages |
+| **Stable / release** | `version.txt` → latest published engine **release** (now `0.19.1` → `v0.19.1`) | downloaded release asset (`gh release download`); extensions downloaded by the engine at `INSTALL` | `0.19.1.x` | `ci.yml`, `release.yml` |
+| **Main-tracking / dev** | `upstream-engine.pin` → an engine **commit** (now `v0.19.1` / `554c1e71`, engine `0.19.1`) | **built from engine source** at that commit, per RID — `lbug_shared` **and** the `fts`/`vector` extensions | `0.19.1-dev.*` prerelease | `github-packages-dev.yml` (fork-only) → GitHub Packages |
 
 > **Why the dev track also builds the extensions.** Upstream publishes extensions only for **released
-> tags** (the last set is `0.17.0`). A main-tracking native declares a yet-unreleased engine version
-> (`0.18.0`), so the engine's `INSTALL fts` would download the mismatched `0.17.0` extension and crash
-> on an undefined `Catalog::createIndex`. The dev workflow therefore builds `fts`/`vector` from the same
-> engine commit and ships them in `LadybugDB.Native.<rid>` **flat** next to the engine library —
+> tags**. When the dev pin rides ahead of the latest extension release, the engine's `INSTALL fts` can
+> download a mismatched extension and fail on undefined symbols. The dev workflow therefore builds
+> `fts`/`vector` from the same engine commit and ships them in `LadybugDB.Native.<rid>` **flat** next to the engine library —
 > `runtimes/<rid>/native/lib<name>.lbug_extension` plus a `lbug_extension_abi_version.txt` marker. At
 > load the binding pre-seeds the engine's cache from those files
 > (`src/LadybugDB/Interop/ExtensionStaging.cs`), so both the binding's helpers and a consumer's raw
@@ -90,7 +89,7 @@ Run this whenever you want the fork to move up to a newer upstream `main`.
    GitHub Packages, and then the `consume-published` matrix restores the published packages on all five
    RIDs and runs a Cypher + `fts` + `vector` round-trip against the source-built native. **Green CI = the
    fork now rides that upstream head.** (Extensions are ABI-matched and shipped — see §E.)
-9. **(optional) tag** the bindings commit, e.g. `git tag dev/0.18.0-eng-<short> && git push fork --tags`,
+9. **(optional) tag** the bindings commit, e.g. `git tag dev/0.19.1-eng-<short> && git push fork --tags`,
    so the exact (binding, engine) pair is recoverable by name.
 
 ### Reproduce the native build locally
@@ -150,8 +149,8 @@ per-call `CAST($search_vector AS FLOAT[<dim>])` it templates into its vector-sea
 **Why the binding can't do it alone:** the engine C API (`src/include/c_api/lbug.h`) has **no fixed-`ARRAY`
 value constructor** — only `lbug_value_create_list`, which produces a variable-length `LIST`, not a
 fixed-size `ARRAY`. A bound value therefore cannot carry a `FLOAT[N]` logical type today. The header is
-**byte-identical `v0.17.1..main`**, so engine `0.18.0` does **not** add one either — this is not unblocked
-by the current pin bump.
+not added by engine `0.19.1` either — the current C API bump adds pushed-down SQL inspection only, not
+fixed-size array value construction.
 
 **What's needed upstream, then here:** an `lbug_value_create_array`-style constructor in `lbug.h` (taking a
 child logical type + fixed length), after which we add a typed binding helper so a bound `float[]`/
@@ -186,28 +185,25 @@ binding seeds them. The moving parts:
 
 **Pin-bump gate (`ABI_VERSION` = engine `LBUG_EXTENSION_VERSION`).** The cache directory the engine reads
 is keyed by the engine's compile-time `LBUG_EXTENSION_VERSION` (in engine `CMakeLists.txt`, currently
-`0.17.0`), **not** `engine_version`. CI and the local script read it from the engine source at build
+`0.19.0`), **not** `engine_version`. CI and the local script read it from the engine source at build
 time, so a bump is picked up automatically — but if a future engine bump changes that constant, confirm a
 green `fts`/`vector` round-trip after advancing the pin (the `SearchExtensionsTests` are the cross-check;
 they FAIL, not skip, on an ABI/undefined-symbol error).
 
 ---
 
-## Current state (2026-07-01)
+## Current state (2026-08-18)
 
-- **Upstream released `v0.18.0`** (2026-07-01, commit `0cda4fff`). Both tracks now point at it.
-- **Pin:** `upstream-engine.pin` → `LadybugDB/ladybug@0cda4fff` (`v0.18.0`, engine `0.18.0`) — pinned **at
-  the release** (13 commits over the previous `d8277a8e5` main pin).
-- **C API check:** `git diff v0.17.1 v0.18.0 -- src/include/c_api/` is **empty** — the header is
-  byte-identical from `v0.17.1` through `v0.18.0`. **No interop changes needed**; the binding is
-  source-compatible. Notable engine fixes picked up over the prior pin: ANY-graph INSERT crash on
-  property strings >12 chars, overflow-page accounting, hash-index storage accounting.
-- **Stable pin (`version.txt`):** `0.18.0.0` → downloads the `v0.18.0` release natives.
-- **Extension ABI:** `LBUG_EXTENSION_VERSION` bumped `0.17.0 → 0.18.0`, so upstream now publishes matching
-  `0.18.0` extensions. The dev track still source-builds + ships `fts`/`vector` and pre-seeds them (§E) —
-  the ABI marker auto-updates to `0.18.0` — which keeps it correct the moment the pin next rides past a
-  release again. Expect FTS index rebuild on first `0.18.0` open.
+- **Upstream released `v0.19.1`** (2026-08-04, commit `554c1e71`). Both tracks now point at it.
+- **Pin:** `upstream-engine.pin` → `LadybugDB/ladybug@554c1e71` (`v0.19.1`, engine `0.19.1`) — pinned **at
+  the release** (110 commits over the previous `0cda4fff` pin).
+- **C API check:** `git diff v0.18.0 v0.19.1 -- src/include/c_api/` adds
+  `lbug_connection_get_pushed_sql`; structs/enums are unchanged. The binding exposes it as
+  `Connection.GetPushedSql`.
+- **Stable pin (`version.txt`):** `0.19.1` → downloads the `v0.19.1` release natives.
+- **Extension ABI:** `LBUG_EXTENSION_VERSION` is `0.19.0`. The dev track still source-builds + ships
+  `fts`/`vector` and pre-seeds them (§E), so the ABI marker auto-updates to `0.19.0`.
 - **Prior milestone:** first green cross-RID dev publish `0.18.0-dev.18.1.eng-d8277a8e5` (run #18, all five
   RIDs green through `build-native` → `publish` → `consume-published`; extension files verified in the
-  published nupkgs). The `v0.18.0` bump republishes on the next `dev` push.
+  published nupkgs). The `v0.19.1` bump republishes on the next `dev` push.
 - Verification of the source-built native across all 5 RIDs runs in CI (the dev workflow + `consume-published`).

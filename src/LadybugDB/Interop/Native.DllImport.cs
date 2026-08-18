@@ -15,6 +15,9 @@ internal static partial class Native
     [DllImport(LibraryName, EntryPoint = "lbug_get_storage_version", CallingConvention = Conv)]
     internal static extern ulong GetStorageVersion();
 
+    [DllImport(LibraryName, EntryPoint = "lbug_get_last_error", CallingConvention = Conv)]
+    internal static extern IntPtr GetLastErrorPtr();
+
     // ---- Database --------------------------------------------------------------------------------
     [DllImport(LibraryName, EntryPoint = "lbug_default_system_config", CallingConvention = Conv)]
     internal static extern LbugSystemConfig DefaultSystemConfig();
@@ -49,6 +52,12 @@ internal static partial class Native
 
     [DllImport(LibraryName, EntryPoint = "lbug_connection_execute", CallingConvention = Conv)]
     internal static extern LbugState ConnectionExecute(ref LbugConnection connection, ref LbugPreparedStatement preparedStatement, out LbugQueryResult outQueryResult);
+
+    [DllImport(LibraryName, EntryPoint = "lbug_connection_get_pushed_sql", CallingConvention = Conv)]
+    private static extern LbugState ConnectionGetPushedSqlRaw(ref LbugConnection connection, byte[] cypherQuery, out IntPtr outSql);
+
+    internal static LbugState ConnectionGetPushedSql(ref LbugConnection connection, string cypherQuery, out IntPtr outSql)
+        => ConnectionGetPushedSqlRaw(ref connection, ToUtf8(cypherQuery), out outSql);
 
     // ---- Connection control ----------------------------------------------------------------------
     [DllImport(LibraryName, EntryPoint = "lbug_connection_interrupt", CallingConvention = Conv)]
@@ -520,9 +529,6 @@ internal static partial class Native
     internal static extern LbugState ValueGetBlob(ref LbugValue value, out IntPtr outResult, out ulong outLength);
 
     // ---- Util ------------------------------------------------------------------------------------
-    [DllImport(LibraryName, EntryPoint = "lbug_get_last_error", CallingConvention = Conv)]
-    internal static extern IntPtr GetLastErrorPtr();
-
     [DllImport(LibraryName, EntryPoint = "lbug_int128_t_from_string", CallingConvention = Conv)]
     private static extern LbugState Int128FromStringRaw(byte[] str, out LbugInt128 outResult);
 

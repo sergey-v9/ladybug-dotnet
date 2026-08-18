@@ -191,8 +191,8 @@ jobs:
           echo "staged native $built -> $dest/${canonical}"
 
           # fts/vector extensions, built from the SAME engine commit so their ABI matches the engine.
-          # The published 0.17.0 extensions do NOT match a 0.18.0-dev engine — they crash with an
-          # undefined `Catalog::createIndex`. The engine resolves `INSTALL`/`LOAD EXTENSION <name>` from
+          # Published extensions from a different engine ABI do NOT match a dev engine — they can crash
+          # with undefined symbols. The engine resolves `INSTALL`/`LOAD EXTENSION <name>` from
           # ~/.lbdb/extension/<EXT_VER>/<platform>/<name>/lib<name>.lbug_extension; we ship these FLAT next
           # to the native (NuGet reliably copies top-level runtimes/<rid>/native files to consumer output;
           # nested subdirs are not guaranteed) so the binding can pre-seed that cache (Interop/

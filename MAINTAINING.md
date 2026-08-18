@@ -5,9 +5,10 @@ the development-era working notes.
 
 ## Repository Shape
 
-This repository contains the hand-written C# binding for the native Ladybug C API. It is also used as the
-`tools/csharp_api` submodule inside the main `LadybugDB/ladybug` monorepo, where the engine source and
-`src/include/c_api/lbug.h` are available at `../../`.
+This is the standalone, hand-written C# binding for the native Ladybug C API. It can be mounted locally
+at `tools/csharp_api` inside a `LadybugDB/ladybug` checkout, where the engine source and
+`src/include/c_api/lbug.h` are available at `../../`. The repositories advance independently: a binding
+release pins a published engine tag rather than a parent-repository submodule commit.
 
 Main areas:
 
@@ -130,28 +131,71 @@ dotnet test tools/csharp_api/test/LadybugDB.Tests/LadybugDB.Tests.csproj -c Rele
 PowerShell can mangle unquoted `-D` arguments; pass CMake flags as quoted strings or via an explicit
 PowerShell array when scripting.
 
+## Adopting an Upstream Engine Release
+
+Use a fresh binding worktree so `lib/` and `download/` cannot contain a native or release archive from
+the previous engine. Set `LADYBUG_ENGINE_REPO` to a local `LadybugDB/ladybug` checkout, then fetch and
+inspect the old and new release tags:
+
+```powershell
+$engine = $env:LADYBUG_ENGINE_REPO
+if (-not $engine -or -not (Test-Path (Join-Path $engine 'src/include/c_api/lbug.h'))) {
+    throw 'Set LADYBUG_ENGINE_REPO to a LadybugDB/ladybug checkout.'
+}
+$old = 'v0.18.2'
+$new = 'v0.19.1'
+
+git -C $engine fetch origin --tags --prune
+gh release view $new --repo LadybugDB/ladybug
+git -C $engine diff --exit-code $old $new -- src/include/c_api/
+git -C $engine log --oneline "$old..$new" -- src/include/c_api/ src/c_api/
+```
+
+The header diff is the ABI gate. An empty diff means no release-driven interop change. A non-empty diff
+requires the ABI checklist below, including updates to both declaration files and native-gated tests.
+Implementation-only changes can still affect behavior, so review the `src/c_api/` log even when the
+header is unchanged.
+
+Confirm that the new release contains every asset named by `cake/BuildContext.cs`:
+
+```powershell
+$required = @(
+    'liblbug-windows-x86_64.zip',
+    'liblbug-linux-x86_64.tar.gz',
+    'liblbug-linux-aarch64.tar.gz',
+    'liblbug-osx-x86_64.tar.gz',
+    'liblbug-osx-arm64.tar.gz'
+)
+$assets = @(gh release view $new --repo LadybugDB/ladybug --json assets --jq '.assets[].name')
+$missing = @($required | Where-Object { $_ -notin $assets })
+if ($missing.Count -ne 0) { throw "Missing release assets: $($missing -join ', ')" }
+```
+
+Set `version.txt` to the exact stable package version, update active version references in the README
+and examples, then validate the real native and the full package family:
+
+```powershell
+.\build.ps1 --target Test --engine-version $new
+.\build.ps1 --target Pack --package-version ($new.TrimStart('v')) --engine-version $new
+```
+
+`Test` must run with native skips disabled. `Pack` must verify the managed package, all five per-RID
+native packages, and the native meta-package. Merge through CI before creating and pushing the matching
+`vX.Y.Z` binding tag; only a tag push publishes to NuGet.
+
 ## Release Flow
 
-1. Decide the package version and update `version.txt`.
-2. Ensure the native engine release exists in `LadybugDB/ladybug` for the first three numeric package
-   version segments, or pass `--engine-version` / workflow `engine_version`.
-3. Run local validation where practical:
-
-   ```powershell
-   ./build.ps1 --target Test
-   ./build.ps1 --target Pack
-   ```
-
+1. Follow **Adopting an Upstream Engine Release** when the first three version segments change.
+2. Update `version.txt`; for a binding-only release, increment only the optional fourth segment.
+3. Run Cake `Test` and `Pack` against the intended engine tag.
 4. Merge through CI.
-5. Tag the package version:
-
-   ```bash
-   git tag v0.17.0.1
-   git push origin v0.17.0.1
-   ```
+5. Tag the merged package version and push that tag; the tag-triggered workflow publishes.
 
 The release workflow gates on linux-x64 against the real engine, packs the full package family, verifies
 contents, and publishes all packages to NuGet through trusted publishing.
+
+The nuget.org trusted-publishing policy should be owned by the LadybugDB organization. Policies apply
+to every package owned by the selected owner, so package-family members do not need separate policies.
 
 Manual `workflow_dispatch` builds and uploads artifacts without publishing. Use it for dry runs.
 
@@ -167,16 +211,15 @@ The workflow has an explicit repository/ref guard:
 github.repository == 'sergey-v9/ladybug-dotnet' && github.ref == 'refs/heads/dev'
 ```
 
-Dev package versions are generated from `version.txt` as
-`<base>-dev.<run>.<attempt>.g<short_sha>`, for example `0.17.1.0-dev.123.1.g0e709a0`. The package IDs
+Dev package versions are generated from `upstream-engine.pin` as
+`<engine_version>-dev.<run>.<attempt>.eng-<engine_short_sha>`, for example `0.19.1-dev.123.1.eng-554c1e711`. The package IDs
 stay the same as the release packages, so consumers must restore from the GitHub Packages source and
-select the generated prerelease version. NuGet normalizes a trailing fourth numeric `.0`, so
-`0.17.1.0-dev.123.1.g0e709a0` is displayed and stored as `0.17.1-dev.123.1.g0e709a0`.
+select the generated prerelease version.
 
 Fork packages must stamp the fork repository URL so GitHub Packages associates them with the fork:
 
 ```powershell
-./build.ps1 --target Pack --package-version 0.17.1.0-dev.0.0.local --repository-url https://github.com/sergey-v9/ladybug-dotnet
+./build.ps1 --target Pack --package-version 0.19.1-dev.0.0.local --repository-url https://github.com/sergey-v9/ladybug-dotnet
 ```
 
 When `--repository-url` is omitted, the Cake pipeline keeps the upstream repository metadata.
@@ -228,11 +271,11 @@ Rules that should not change without deliberate review:
 The binding tracks the `LadybugDB/ladybug` engine on **two independent tracks**, both documented as a
 repeatable runbook in [`docs/upstream-sync.md`](docs/upstream-sync.md):
 
-- **Stable / release** — `version.txt` pins the latest published engine **release** (now `0.17.1.0` →
-  `v0.17.1`); natives are downloaded release assets. This is the `ci.yml` / `release.yml` flow.
+- **Stable / release** — `version.txt` pins the latest published engine **release** (now `0.19.1` →
+  `v0.19.1`); natives are downloaded release assets. This is the `ci.yml` / `release.yml` flow.
 - **Main-tracking / dev** — `upstream-engine.pin` pins an engine **commit**; the fork's
   `github-packages-dev.yml` builds `lbug_shared` from that source per RID and publishes a
-  `0.18.0-dev.*` prerelease to GitHub Packages, so the fork rides upstream `main`.
+  `0.19.1-dev.*` prerelease to GitHub Packages, so the fork rides upstream `main`.
 
 The gate that decides whether a sync needs *code* changes is a C-API header diff
 (`git diff <oldpin> <newpin> -- src/include/c_api/`): empty → bump the pin only; non-empty → follow the

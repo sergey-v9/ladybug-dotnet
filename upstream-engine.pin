@@ -1,24 +1,24 @@
 # Upstream engine pin — main-tracking dev feed.
 #
-# This fork's `dev` packages (0.18.0-dev.* prereleases on GitHub Packages) are built against the
+# This fork's `dev` packages (0.19.1-dev.* prereleases on GitHub Packages) are built against the
 # LadybugDB/ladybug engine SOURCE at the commit below. It normally rides upstream `main` (ahead of
-# releases); right now it is pinned AT the v0.18.0 release commit, so the dev feed and the stable
+# releases); right now it is pinned AT the v0.19.1 release commit, so the dev feed and the stable
 # release track the same engine. Advance this pin with the runbook in docs/upstream-sync.md.
 #
 # The STABLE/release package family is INDEPENDENT of this file: it is pinned by version.txt to the
-# latest published engine RELEASE (currently v0.18.0) and ships prebuilt release natives.
+# latest published engine RELEASE (currently v0.19.1) and ships prebuilt release natives.
 #
 # Format: key=value, one per line. Consumed by .github/workflows/github-packages-dev.yml and
 # scripts/build-native-from-pin.ps1.
 
 repo=LadybugDB/ladybug
-commit=0cda4fffcebb4a52cc24198462901ad28e2d5b66
-describe=v0.18.0
-engine_version=0.18.0
-capi_stable_since=v0.17.1
-updated=2026-07-01
-note=Pinned AT the v0.18.0 release (0cda4fff). C API header (src/include/c_api/lbug.h) is byte-identical v0.17.1..v0.18.0 — binding interop needs no changes. 13 commits over the previous pin (d8277a8e5): extension version bumped to 0.18.0, plus crash/accounting fixes. Extensions are still source-built + shipped by the dev feed (ABI marker now 0.18.0).
+commit=554c1e71158564c37a30c541a92bfc9eddc96430
+describe=v0.19.1
+engine_version=0.19.1
+capi_stable_since=v0.19.1
+updated=2026-08-18
+note=Pinned AT the v0.19.1 release (554c1e71). C API header adds lbug_connection_get_pushed_sql over v0.18.0; structs/enums are unchanged. 110 commits over the previous pin (0cda4fff), including pushed-down SQL inspection, attach/foreign-scan fixes, Arrow UUID/MAP fixes, COPY auto_checkpoint fix, WAL/read-only checkpoint hardening, and histogram/percentile/date-part additions. Extension ABI is 0.19.0.
 # consumer_impact: one-line, structured summary of what THIS pin changes for downstream consumers
 # (e.g. Graphiti), so they don't re-derive it each cycle. Required on every bump (see docs/upstream-sync.md).
 # Fields: interop=<none|...>; fts_scoring=<...>; new_ddl=<...>; fixes=<...>; note=<...>
-consumer_impact=interop=none; fts_scoring=unchanged; new_ddl=NONE (SHOW_INDEXES now lists built-in PK indexes); fixes=ANY-graph-INSERT-crash-on-property-strings>12chars,overflow-page-accounting,hash-index-storage-accounting; note=extension ABI bumped 0.17.0->0.18.0 (published 0.18.0 extensions now exist; dev feed still ships ABI-matched source builds); re-verify FTS ordering + expect FTS index rebuild on first 0.18.0 open
+consumer_impact=interop=added:lbug_connection_get_pushed_sql; fts_scoring=re-verify (extension ABI 0.19.0, source-built/shipped by dev feed); new_ddl=NONE; fixes=attach/foreign-scan routing,Arrow UUID endpoint + MAP schema export,COPY auto_checkpoint,read-only checkpoint open,WAL forward-compatible replay,recursive-shortest node filtering; note=Graphiti can use Connection.GetPushedSql once restored against 0.19.1-dev packages
